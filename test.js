@@ -49,5 +49,6 @@ assert.match(client,/button\.card\.selected:hover[^}]+translateY\(-16px\)/,'A se
 assert.match(client,/finalTurnAlert/,'The table must display a prominent final-turn warning.');
 assert.match(client,/round-event-pop 5s/,'The last-turn popup must remain visible for five seconds.');
 assert.match(client,/innerHTML=`LAST TURN/,'The went-out announcement must clearly say LAST TURN.');
+assert.match(client,/choose your player\/i\.test\(error\.message\)/,'An expired saved session must return the visitor to player selection.');
 
 console.log('Five Crowns rule-engine tests passed.');

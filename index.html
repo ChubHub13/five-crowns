@@ -206,12 +206,12 @@
     }
   </style>
 </head>
-<body data-theme="classic" data-version="2.0.3">
+<body data-theme="classic" data-version="2.0.4">
   <main class="app">
     <header class="topbar">
       <div class="brand">
         <div class="crown-mark">♛</div>
-        <div><h1>FIVE CROWNS <span class="version">v2.0.3</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
+        <div><h1>FIVE CROWNS <span class="version">v2.0.4</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
       </div>
       <div class="top-actions"><button class="btn small" id="rulesButton">Rules</button><button class="btn small" id="settingsButton">Settings</button></div>
     </header>
@@ -253,7 +253,7 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    const APP_VERSION="2.0.3";
+    const APP_VERSION="2.0.4";
     const PLAYER_NAMES=["Daryl","Cristi","Cindy"];
     const SUIT_SYMBOLS={stars:"★",hearts:"♥",clubs:"♣",spades:"♠",diamonds:"♦"};
     const SESSION_KEY="threeHandedFiveCrownsSession";
@@ -332,7 +332,7 @@
     function playSound(kind){if(!prefs.sound)return;try{const context=playSound.context||(playSound.context=new (window.AudioContext||window.webkitAudioContext)());const oscillator=context.createOscillator(),gain=context.createGain();const tones={draw:330,discard:220,out:620,score:470,win:740};oscillator.frequency.value=tones[kind]||300;oscillator.type=kind==="win"?"triangle":"sine";gain.gain.setValueAtTime(.055,context.currentTime);gain.gain.exponentialRampToValueAtTime(.001,context.currentTime+.18);oscillator.connect(gain).connect(context.destination);oscillator.start();oscillator.stop(context.currentTime+.19);}catch(error){}}
     function launchConfetti(){const colors=["#f3c55a","#d64b56","#269a68","#9c55c6","#fff4ce"];for(let index=0;index<80;index++){const piece=document.createElement("div");piece.className="confetti";piece.style.left=`${Math.random()*100}vw`;piece.style.background=colors[index%colors.length];piece.style.animationDelay=`${Math.random()*.8}s`;piece.style.transform=`rotate(${Math.random()*360}deg)`;document.body.appendChild(piece);setTimeout(()=>piece.remove(),4100);}}
 
-    async function poll(){if(!state.token||state.actionBusy)return;try{const data=await api(`/api/state?token=${encodeURIComponent(state.token)}`);state.data=data.state;if(state.selectedCardId&&!state.data.hands?.[state.seat]?.some(card=>card.id===state.selectedCardId))state.selectedCardId=null;render();}catch(error){clearInterval(state.poll);clearInterval(state.heartbeat);showToast("Local game server is not available.");}}
+    async function poll(){if(!state.token||state.actionBusy)return false;try{const data=await api(`/api/state?token=${encodeURIComponent(state.token)}`);state.data=data.state;if(state.selectedCardId&&!state.data.hands?.[state.seat]?.some(card=>card.id===state.selectedCardId))state.selectedCardId=null;render();return true;}catch(error){clearInterval(state.poll);clearInterval(state.heartbeat);if(/choose your player/i.test(error.message)){localStorage.removeItem(SESSION_KEY);state.token=null;state.seat=-1;state.name=null;state.data=null;choosePlayer();showToast("Choose your player to rejoin.");}else showToast("Game server is not available.");return false;}}
     async function heartbeat(){if(!state.token)return;try{await api("/api/heartbeat",{method:"POST",body:JSON.stringify({token:state.token})});}catch(error){}}
     function startPolling(){clearInterval(state.poll);clearInterval(state.heartbeat);state.poll=setInterval(poll,700);state.heartbeat=setInterval(heartbeat,3500);}
 
@@ -340,7 +340,7 @@
     els.backdrop.addEventListener("click",event=>{if(event.target===els.backdrop)closeModal();});
     document.getElementById("rulesButton").onclick=showRules;document.getElementById("localRulesButton").onclick=showRules;document.getElementById("settingsButton").onclick=openSettings;document.getElementById("playerButton").onclick=choosePlayer;document.getElementById("newGameButton").onclick=()=>{if(!state.token)return choosePlayer();state.lastRoundShown=0;closeModal();send({action:"newGame"});};
 
-    (async function boot(){const saved=JSON.parse(localStorage.getItem(SESSION_KEY)||"null");if(saved?.token){state.token=saved.token;state.seat=saved.seat;state.name=saved.name;try{await poll();startPolling();return;}catch(error){}}choosePlayer();})();
+    (async function boot(){const saved=JSON.parse(localStorage.getItem(SESSION_KEY)||"null");if(saved?.token){state.token=saved.token;state.seat=saved.seat;state.name=saved.name;if(await poll()){startPolling();return;}if(!state.token)return;}choosePlayer();})();
   </script>
 </body>
 </html>
