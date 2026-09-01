@@ -59,6 +59,8 @@ assert.doesNotMatch(client,/add\("Sort Cards"/,'Sorting must happen automaticall
 assert.match(client,/if\(aWild!==bWild\)return aWild\?1:-1/,'Sorting must place wild cards on the right.');
 assert.match(client,/newRound\|\|newDraw/,'The hand must sort at the start of a round and after drawing a card.');
 assert.match(client,/id="handPoints"/,'The player hand must include a private current-points display.');
+assert.match(client,/desired=card\.right-zone\.left\+card\.width/,'The hand-points badge must sit one card width to the right of the cards.');
+assert.match(client,/requestAnimationFrame\(positionHandPoints\)/,'The hand-points position must update after every hand render.');
 assert.doesNotMatch(client,/Review Table/,'The final score popup must not offer Review Table.');
 assert.match(client,/async function animateDiscard\(cardId\)/,'Discarding must animate the selected card toward the discard pile.');
 assert.match(client,/if\(action\.action==="discard"\)await animateDiscard\(action\.cardId\)/,'The discard animation must complete before the server updates the hand.');
