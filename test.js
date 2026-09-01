@@ -47,7 +47,8 @@ assert.match(client,/HAND_ORDER_KEY/,'The chosen card order must survive normal 
 assert.match(client,/button\.card:hover[^}]+transform:none/,'Hovering a hand card must not move it.');
 assert.match(client,/button\.card\.selected:hover[^}]+translateY\(-16px\)/,'A selected card must stay steady when hovered.');
 assert.doesNotMatch(client,/finalTurnAlert/,'The duplicate red final-turn banner must stay removed.');
-assert.match(client,/round-event-pop 5s/,'The last-turn popup must remain visible for five seconds.');
+assert.match(client,/round-event-pop 3s/,'The last-turn popup animation must last three seconds.');
+assert.match(client,/classList\.remove\("show"\);},3000\)/,'The last-turn popup must close after three seconds.');
 assert.match(client,/innerHTML=`LAST TURN/,'The went-out announcement must clearly say LAST TURN.');
 assert.match(client,/choose your player\/i\.test\(error\.message\)/,'An expired saved session must return the visitor to player selection.');
 assert.match(client,/id="saveGameButton"/,'The sidebar must provide a Save Game button.');
