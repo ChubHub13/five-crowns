@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#24102f">
+  <title>Three-Handed Five Crowns</title>
+  <style>
+    :root {
+      --ink:#fff8e8; --muted:#cdbfd3; --gold:#f3c55a; --gold-deep:#a87016;
+      --purple:#2a1036; --purple-2:#4c1e5f; --felt:#173f38; --felt-2:#0d2c28;
+      --panel:rgba(20,8,28,.88); --line:rgba(243,197,90,.25); --danger:#d35d63;
+      --card-w:76px; --card-h:108px;
+      --stars:#d8a827; --hearts:#d64b56; --clubs:#269a68; --spades:#4a65b4; --diamonds:#9c55c6;
+    }
+    * { box-sizing:border-box; }
+    html,body { margin:0; min-height:100%; background:#100814; color:var(--ink); font-family:Inter,Segoe UI,Arial,sans-serif; }
+    body { min-height:100vh; overflow-x:hidden; background:
+      radial-gradient(circle at 50% -20%,rgba(158,75,183,.38),transparent 42%),
+      linear-gradient(150deg,#100814,#24102f 50%,#0d1715); }
+    button,input,select { font:inherit; }
+    button { color:inherit; }
+    [hidden] { display:none !important; }
+
+    .app { min-height:100vh; display:grid; grid-template-rows:auto minmax(0,1fr); }
+    .topbar { min-height:72px; display:flex; align-items:center; justify-content:space-between; gap:14px; padding:10px 18px; border-bottom:1px solid var(--line); background:rgba(10,5,14,.92); box-shadow:0 8px 30px rgba(0,0,0,.28); }
+    .brand { display:flex; align-items:center; gap:12px; min-width:0; }
+    .crown-mark { width:48px; height:48px; display:grid; place-items:center; border:1px solid var(--line); border-radius:14px; color:var(--gold); font-size:31px; background:linear-gradient(145deg,#4c1e5f,#1a0b22); box-shadow:0 5px 18px rgba(0,0,0,.35); }
+    .brand h1 { margin:0; font-family:Georgia,serif; font-size:clamp(21px,3vw,34px); line-height:1; letter-spacing:.04em; color:#ffe29a; }
+    .brand p { margin:5px 0 0; color:var(--muted); font-size:12px; font-style:italic; }
+    .version { margin-left:7px; font:800 10px/1 Segoe UI,sans-serif; color:var(--muted); vertical-align:top; }
+    .top-actions { display:flex; gap:7px; }
+
+    .btn { min-height:38px; padding:8px 13px; border:1px solid rgba(255,255,255,.16); border-radius:11px; background:linear-gradient(#442153,#27112f); font-weight:800; cursor:pointer; box-shadow:0 3px 10px rgba(0,0,0,.2); }
+    .btn:hover:not(:disabled) { filter:brightness(1.16); transform:translateY(-1px); }
+    .btn:disabled { opacity:.42; cursor:not-allowed; }
+    .btn.primary { color:#2b1902; border-color:#ffe296; background:linear-gradient(#ffd978,#c98c22); }
+    .btn.success { color:#071b12; border-color:#8aefbb; background:linear-gradient(#81e8af,#3eae72); }
+    .btn.danger { background:linear-gradient(#8b3545,#57212d); }
+    .btn.small { min-height:32px; padding:6px 10px; font-size:11px; }
+
+    .layout { min-height:0; display:grid; grid-template-columns:228px minmax(0,1fr); gap:10px; padding:10px; }
+    .sidebar { min-height:0; display:flex; flex-direction:column; gap:8px; }
+    .panel { border:1px solid var(--line); border-radius:14px; background:var(--panel); box-shadow:0 8px 24px rgba(0,0,0,.24); }
+    .round-panel { padding:12px; text-align:center; }
+    .round-label { color:var(--muted); font-size:10px; font-weight:900; letter-spacing:.14em; text-transform:uppercase; }
+    .round-value { margin-top:2px; font:700 25px/1 Georgia,serif; color:#ffe29a; }
+    .round-detail { margin-top:5px; color:var(--muted); font-size:11px; }
+    .wild-banner { margin-top:9px; display:flex; align-items:center; justify-content:center; gap:8px; min-height:39px; border:1px solid rgba(243,197,90,.32); border-radius:11px; background:rgba(106,58,19,.28); }
+    .wild-rank { color:var(--gold); font:900 22px/1 Georgia,serif; }
+    .wild-copy { text-align:left; font-size:9px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; }
+
+    .scoreboard { padding:10px; }
+    .panel-heading { margin-bottom:7px; color:var(--muted); font-size:10px; font-weight:900; letter-spacing:.13em; text-transform:uppercase; }
+    .score-row { display:grid; grid-template-columns:1fr auto; align-items:center; gap:8px; min-height:35px; padding:5px 7px; border-top:1px solid rgba(255,255,255,.06); }
+    .score-row:first-of-type { border-top:0; }
+    .score-name { font-weight:800; font-size:12px; }
+    .score-number { color:#ffe29a; font:800 20px/1 Georgia,serif; }
+    .score-note { display:block; color:var(--muted); font-size:8px; font-weight:500; }
+
+    .history { padding:9px 10px; max-height:126px; overflow:auto; }
+    .history-row { display:grid; grid-template-columns:34px repeat(3,1fr); gap:4px; padding:4px 0; border-top:1px solid rgba(255,255,255,.06); color:var(--muted); font-size:9px; text-align:center; }
+    .history-row strong { color:var(--ink); }
+
+    .chat { min-height:118px; flex:1; display:grid; grid-template-rows:auto minmax(54px,1fr) auto; padding:9px; }
+    .chat-messages { min-height:0; overflow:auto; font-size:10px; line-height:1.45; }
+    .chat-message b { color:var(--gold); }
+    .chat-form { display:grid; grid-template-columns:1fr auto; gap:5px; margin-top:6px; }
+    .chat-form input { min-width:0; padding:7px 8px; border:1px solid rgba(255,255,255,.13); border-radius:8px; color:var(--ink); background:rgba(0,0,0,.24); outline:none; }
+    .sidebar-actions { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+    #newGameButton { grid-column:1/-1; }
+
+    .game-main { min-width:0; min-height:0; display:grid; grid-template-rows:minmax(510px,1fr) 68px; gap:8px; }
+    .table { position:relative; min-height:510px; overflow:hidden; border:8px solid #32153d; border-radius:38px; background:
+      radial-gradient(ellipse at center,rgba(255,255,255,.05),transparent 52%),
+      repeating-radial-gradient(circle at 30% 30%,rgba(255,255,255,.014) 0 1px,transparent 1px 4px),
+      linear-gradient(145deg,var(--felt),var(--felt-2)); box-shadow:inset 0 0 55px rgba(0,0,0,.52),0 12px 35px rgba(0,0,0,.34); }
+    .table::before { content:"FIVE CROWNS"; position:absolute; left:50%; top:47%; transform:translate(-50%,-50%); color:rgba(255,229,153,.055); font:900 clamp(34px,7vw,86px)/1 Georgia,serif; letter-spacing:.05em; white-space:nowrap; }
+    .player { position:absolute; z-index:4; min-width:116px; display:grid; grid-template-columns:35px 1fr; gap:7px; align-items:center; padding:7px 9px; border:1px solid rgba(255,255,255,.14); border-radius:12px; background:rgba(13,7,17,.83); box-shadow:0 5px 15px rgba(0,0,0,.32); }
+    .player.active { border-color:var(--gold); box-shadow:0 0 0 2px rgba(243,197,90,.2),0 5px 15px rgba(0,0,0,.3); }
+    .player.out { border-color:#65d79d; }
+    .player.north { top:13px; left:50%; transform:translateX(-50%); }
+    .player.west { left:13px; top:34%; }
+    .player.south { left:13px; bottom:122px; }
+    .avatar { width:35px; height:35px; display:grid; place-items:center; border-radius:50%; color:#27112f; background:linear-gradient(#ffe29a,#c88d28); font:900 15px Georgia,serif; }
+    .player-name { font-weight:900; font-size:12px; }
+    .player-detail { color:var(--muted); font-size:9px; }
+    .player-badges { grid-column:1/-1; display:flex; gap:4px; margin-top:-3px; }
+    .badge { padding:2px 5px; border-radius:99px; color:#1b0e20; background:var(--gold); font-size:7px; font-weight:1000; letter-spacing:.05em; }
+    .badge.out-badge { background:#65d79d; }
+
+    .center-piles { position:absolute; z-index:3; left:50%; top:44%; transform:translate(-50%,-50%); display:flex; align-items:center; gap:28px; }
+    .pile-wrap { width:94px; text-align:center; }
+    .pile-label { margin-top:6px; color:var(--muted); font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.08em; }
+    .pile-card { position:relative; width:var(--card-w); height:var(--card-h); margin:auto; padding:0; border:0; border-radius:10px; background:none; cursor:default; }
+    .pile-card.actionable { cursor:pointer; }
+    .pile-card.actionable:hover { transform:translateY(-4px); }
+    .card-back { width:100%; height:100%; display:grid; place-items:center; border:4px solid #f2d37b; border-radius:10px; color:#f2d37b; background:
+      linear-gradient(45deg,transparent 46%,rgba(255,255,255,.12) 47% 53%,transparent 54%),
+      linear-gradient(-45deg,transparent 46%,rgba(255,255,255,.12) 47% 53%,transparent 54%),#4c1e5f; background-size:16px 16px; box-shadow:3px 5px 0 #1b0c22,0 8px 18px rgba(0,0,0,.32); font:900 29px Georgia,serif; }
+    .stock-count { position:absolute; right:-7px; bottom:-7px; min-width:24px; padding:4px; border-radius:99px; color:#25112e; background:var(--gold); font-size:10px; font-weight:900; }
+
+    .hand-zone { position:absolute; z-index:5; left:145px; right:12px; bottom:5px; height:135px; overflow:visible; }
+    .hand { height:100%; display:flex; align-items:flex-end; justify-content:center; padding:7px 8px; overflow:visible; }
+    .card { --suit:#555; position:relative; width:var(--card-w); height:var(--card-h); flex:0 0 auto; margin-left:-19px; padding:0; border:2px solid #eee3c7; border-radius:10px; color:#1d1720; background:linear-gradient(150deg,#fffef9,#eee8d8); box-shadow:0 7px 15px rgba(0,0,0,.33); user-select:none; transition:transform .14s ease,filter .14s ease; }
+    .card:first-child { margin-left:0; }
+    button.card { cursor:pointer; }
+    button.card:hover:not(:disabled) { transform:translateY(-8px); }
+    .card.selected { transform:translateY(-16px); outline:3px solid var(--gold); outline-offset:1px; }
+    .card.drawn { box-shadow:0 0 0 3px #77dba7,0 8px 17px rgba(0,0,0,.36); }
+    .card.go-out-card::after { content:"GO OUT"; position:absolute; left:50%; bottom:-18px; transform:translateX(-50%); padding:2px 5px; border-radius:5px; color:#062116; background:#78dfaa; font-size:7px; font-weight:1000; white-space:nowrap; }
+    .card.stars { --suit:var(--stars); } .card.hearts { --suit:var(--hearts); } .card.clubs { --suit:var(--clubs); } .card.spades { --suit:var(--spades); } .card.diamonds { --suit:var(--diamonds); }
+    .card.joker { --suit:#7850a7; color:#3a164a; background:linear-gradient(145deg,#fff9de,#e5d5f0); }
+    .card.wild { border-color:#f0b82f; background:linear-gradient(145deg,#fffce9,#f7e6a8); }
+    .corner { position:absolute; left:6px; top:5px; color:var(--suit); text-align:center; font:900 15px/1 Georgia,serif; }
+    .corner.bottom { left:auto; top:auto; right:6px; bottom:5px; transform:rotate(180deg); }
+    .corner span { display:block; font-size:10px; margin-top:2px; }
+    .card-center { position:absolute; inset:18px 7px; display:grid; place-items:center; color:var(--suit); text-align:center; }
+    .big-rank { font:900 29px/1 Georgia,serif; }
+    .big-suit { margin-top:4px; font-size:24px; }
+    .joker-crown { font-size:37px; line-height:1; }
+    .joker-word { margin-top:3px; font:900 9px/1 Segoe UI,sans-serif; letter-spacing:.12em; }
+    .wild-flag { position:absolute; top:4px; right:4px; padding:2px 4px; border-radius:4px; color:#3b2503; background:var(--gold); font-size:6px; font-weight:1000; }
+
+    .empty-discard { width:100%; height:100%; display:grid; place-items:center; border:2px dashed rgba(255,255,255,.22); border-radius:10px; color:var(--muted); font-size:10px; }
+    .turn-note { position:absolute; left:50%; top:18px; transform:translateX(-50%); z-index:3; max-width:min(520px,65%); padding:7px 12px; border:1px solid var(--line); border-radius:99px; color:#f9e9bd; background:rgba(13,7,17,.74); font-size:11px; font-weight:800; text-align:center; }
+
+    .controls { min-height:68px; display:flex; align-items:center; justify-content:center; gap:8px; padding:8px; border:1px solid var(--line); border-radius:14px; background:var(--panel); overflow-x:auto; }
+    .controls .btn { min-width:120px; }
+    .selection-note { color:var(--muted); font-size:11px; font-weight:700; }
+
+    .backdrop { position:fixed; z-index:50; inset:0; display:grid; place-items:center; padding:10px; background:rgba(5,2,8,.78); opacity:0; pointer-events:none; transition:opacity .15s ease; }
+    .backdrop.open { opacity:1; pointer-events:auto; }
+    .modal { width:min(780px,calc(100vw - 20px)); max-height:calc(100vh - 20px); overflow:auto; padding:18px; border:1px solid rgba(243,197,90,.38); border-radius:18px; background:linear-gradient(150deg,#281031,#130819); box-shadow:0 22px 70px rgba(0,0,0,.65); }
+    .modal h2 { margin:0 0 8px; color:#ffe29a; font:700 28px/1.1 Georgia,serif; text-align:center; }
+    .modal-summary { margin:0 0 12px; color:var(--muted); font-size:12px; text-align:center; line-height:1.5; }
+    .join-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:14px; }
+    .join-choice { min-height:78px; border:1px solid var(--line); border-radius:13px; color:#ffe29a; background:rgba(93,38,111,.46); font:800 20px Georgia,serif; cursor:pointer; }
+    .summary-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+    .summary-card { min-width:0; padding:10px; border:1px solid rgba(255,255,255,.1); border-radius:12px; background:rgba(0,0,0,.18); }
+    .summary-card h3 { margin:0; color:#ffe29a; font-size:14px; }
+    .round-points { margin:4px 0; font:900 30px/1 Georgia,serif; }
+    .total-score { color:var(--muted); font-size:10px; }
+    .meld-block { margin-top:8px; padding-top:7px; border-top:1px solid rgba(255,255,255,.07); }
+    .meld-title { margin-bottom:4px; color:var(--muted); font-size:8px; font-weight:900; text-transform:uppercase; letter-spacing:.08em; }
+    .mini-cards { display:flex; flex-wrap:wrap; gap:3px; }
+    .mini-card { padding:3px 5px; border-radius:5px; color:#26152d; background:#f4ead4; font-size:9px; font-weight:900; }
+    .mini-card.dead { color:#fff; background:#7a2e3b; }
+    .modal-actions { display:flex; justify-content:center; gap:7px; margin-top:14px; }
+    .rules-list { padding-left:20px; color:#e9deeb; font-size:12px; line-height:1.55; }
+    .settings-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .field { display:grid; gap:4px; color:var(--muted); font-size:10px; font-weight:800; }
+    .field select,.field input { min-height:38px; padding:7px; border:1px solid rgba(255,255,255,.15); border-radius:8px; color:var(--ink); background:#25102e; }
+    .toast { position:fixed; z-index:80; left:50%; bottom:22px; transform:translate(-50%,20px); padding:9px 14px; border:1px solid var(--line); border-radius:9px; color:#281402; background:#f0c35c; font-size:11px; font-weight:900; opacity:0; pointer-events:none; transition:.18s ease; }
+    .toast.show { opacity:1; transform:translate(-50%,0); }
+    .confetti { position:fixed; z-index:100; top:-14px; width:9px; height:15px; animation:fall 3.2s linear forwards; }
+    @keyframes fall { to { transform:translateY(110vh) rotate(720deg); opacity:.15; } }
+
+    body[data-theme="casual"] { --purple:#173544; --purple-2:#24546a; --felt:#234d52; --felt-2:#17393d; --panel:rgba(10,29,36,.9); --gold:#ffd36e; }
+
+    @media (max-width:900px) {
+      :root { --card-w:66px; --card-h:94px; }
+      .layout { grid-template-columns:188px minmax(0,1fr); }
+      .hand-zone { left:128px; height:119px; }
+      .player.south { bottom:108px; }
+      .card { margin-left:-22px; }
+    }
+    @media (max-width:700px) {
+      body { overflow:auto; }
+      .app { min-height:100vh; }
+      .topbar { padding:8px 10px; }
+      .brand p { display:none; }
+      .crown-mark { width:39px; height:39px; font-size:25px; }
+      .layout { display:flex; flex-direction:column; padding:6px; }
+      .sidebar { display:grid; grid-template-columns:1fr 1fr; }
+      .chat { display:none; }
+      .sidebar-actions { grid-column:1/-1; grid-template-columns:repeat(3,1fr); }
+      #newGameButton { grid-column:auto; }
+      .history { display:none; }
+      .game-main { grid-template-rows:510px 62px; }
+      .table { min-height:510px; border-radius:25px; border-width:5px; }
+      .player.west { top:18%; left:5px; }
+      .player.north { top:5px; }
+      .player.south { left:5px; bottom:110px; }
+      .center-piles { top:45%; gap:15px; }
+      .hand-zone { left:5px; right:5px; }
+      .turn-note { top:64px; max-width:86%; }
+      .summary-grid { grid-template-columns:1fr; }
+      .settings-grid { grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+<body data-theme="classic" data-version="2.0.0">
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="crown-mark">♛</div>
+        <div><h1>FIVE CROWNS <span class="version">v2.0.0</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
+      </div>
+      <div class="top-actions"><button class="btn small" id="rulesButton">Rules</button><button class="btn small" id="settingsButton">Settings</button></div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <section class="panel round-panel">
+          <div class="round-label">Round</div><div class="round-value" id="roundValue">Waiting</div><div class="round-detail" id="roundDetail">3 cards begin the game</div>
+          <div class="wild-banner" id="wildBanner" hidden><div class="wild-rank" id="wildRank">3</div><div class="wild-copy">Current<br>wild cards</div></div>
+        </section>
+        <section class="panel scoreboard"><div class="panel-heading">Score · low wins</div><div id="scoreRows"></div></section>
+        <section class="panel history"><div class="panel-heading">Round history</div><div id="historyRows"><div class="round-detail">No rounds scored.</div></div></section>
+        <section class="panel chat"><div class="panel-heading">Table chat</div><div class="chat-messages" id="chatMessages"></div><form class="chat-form" id="chatForm"><input id="chatInput" maxlength="240" autocomplete="off" placeholder="Message..."><button class="btn small">Send</button></form></section>
+        <div class="sidebar-actions"><button class="btn small" id="playerButton">Player</button><button class="btn small" id="localRulesButton">Rules</button><button class="btn danger" id="newGameButton">New Game</button></div>
+      </aside>
+
+      <section class="game-main">
+        <div class="table" id="table">
+          <div class="turn-note" id="turnNote">Choose a player to begin.</div>
+          <div class="player north" id="player2"><div class="avatar">C</div><div><div class="player-name">Cindy</div><div class="player-detail" id="detail2">Waiting</div></div><div class="player-badges" id="badges2"></div></div>
+          <div class="player west" id="player1"><div class="avatar">C</div><div><div class="player-name">Cristi</div><div class="player-detail" id="detail1">Waiting</div></div><div class="player-badges" id="badges1"></div></div>
+          <div class="player south" id="player0"><div class="avatar">D</div><div><div class="player-name">Daryl</div><div class="player-detail" id="detail0">Waiting</div></div><div class="player-badges" id="badges0"></div></div>
+
+          <div class="center-piles">
+            <div class="pile-wrap"><button class="pile-card" id="stockPile" aria-label="Draw from stock"><div class="card-back">♛</div><span class="stock-count" id="stockCount">0</span></button><div class="pile-label">Draw pile</div></div>
+            <div class="pile-wrap"><button class="pile-card" id="discardPile" aria-label="Take top discard"><div class="empty-discard">Empty</div></button><div class="pile-label">Discard pile</div></div>
+          </div>
+
+          <div class="hand-zone"><div class="hand" id="humanHand"></div></div>
+        </div>
+        <div class="controls" id="controls"></div>
+      </section>
+    </div>
+  </main>
+
+  <div class="backdrop" id="backdrop"><div class="modal" id="modal"></div></div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const APP_VERSION="2.0.0";
+    const PLAYER_NAMES=["Daryl","Cristi","Cindy"];
+    const SUIT_SYMBOLS={stars:"★",hearts:"♥",clubs:"♣",spades:"♠",diamonds:"♦"};
+    const SESSION_KEY="threeHandedFiveCrownsSession";
+    const PREF_KEY="threeHandedFiveCrownsPreferences";
+    const API=location.protocol==="file:"?"http://127.0.0.1:8080":"";
+    const state={token:null,seat:-1,name:null,data:null,poll:null,heartbeat:null,selectedCardId:null,actionBusy:false,lastRoundShown:0};
+    const prefs=Object.assign({theme:"classic",sound:true,botSpeed:"normal"},JSON.parse(localStorage.getItem(PREF_KEY)||"null")||{});
+    document.body.dataset.theme=prefs.theme;
+    const els={
+      roundValue:document.getElementById("roundValue"),roundDetail:document.getElementById("roundDetail"),wildBanner:document.getElementById("wildBanner"),wildRank:document.getElementById("wildRank"),
+      scoreRows:document.getElementById("scoreRows"),historyRows:document.getElementById("historyRows"),chatMessages:document.getElementById("chatMessages"),chatForm:document.getElementById("chatForm"),chatInput:document.getElementById("chatInput"),
+      table:document.getElementById("table"),turnNote:document.getElementById("turnNote"),stockPile:document.getElementById("stockPile"),stockCount:document.getElementById("stockCount"),discardPile:document.getElementById("discardPile"),hand:document.getElementById("humanHand"),controls:document.getElementById("controls"),
+      backdrop:document.getElementById("backdrop"),modal:document.getElementById("modal"),toast:document.getElementById("toast")
+    };
+
+    function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));}
+    function rankLabel(rank){return rank===11?"J":rank===12?"Q":rank===13?"K":String(rank);}
+    function cardLabel(card){return card.joker?"Joker":`${rankLabel(card.rank)} of ${card.suit}`;}
+    function isWild(card,s=state.data){return !!card&&(card.joker||card.rank===s?.wildRank);}
+    function cardHtml(card,extra=""){if(!card)return '<div class="empty-discard">Empty</div>';const wild=isWild(card),symbol=card.joker?"♛":SUIT_SYMBOLS[card.suit],rank=card.joker?"J":rankLabel(card.rank);return `<div class="card ${card.joker?"joker":card.suit} ${wild?"wild":""} ${extra}" aria-label="${escapeHtml(cardLabel(card))}">${wild?'<span class="wild-flag">WILD</span>':""}<div class="corner">${rank}<span>${symbol}</span></div><div class="card-center">${card.joker?'<div><div class="joker-crown">♛</div><div class="joker-word">JOKER</div></div>':`<div><div class="big-rank">${rank}</div><div class="big-suit">${symbol}</div></div>`}</div><div class="corner bottom">${rank}<span>${symbol}</span></div></div>`;}
+    function miniCard(card,dead=false){return `<span class="mini-card ${dead?"dead":""}">${card.joker?"♛ Joker":`${rankLabel(card.rank)}${SUIT_SYMBOLS[card.suit]}`}</span>`;}
+    function showToast(message){els.toast.textContent=message;els.toast.classList.add("show");clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>els.toast.classList.remove("show"),1900);}
+    function openModal(html){els.modal.className="modal";els.modal.innerHTML=html;els.backdrop.classList.add("open");}
+    function closeModal(){els.backdrop.classList.remove("open");els.modal.innerHTML="";}
+
+    async function api(path,options={}){const response=await fetch(API+path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});const data=await response.json();if(!response.ok||data.ok===false)throw new Error(data.message||"Request failed");return data;}
+    async function send(action){if(state.actionBusy)return;state.actionBusy=true;try{const data=await api("/api/action",{method:"POST",body:JSON.stringify({token:state.token,...action})});state.data=data.state;if(action.action==="draw")playSound("draw");if(action.action==="discard")playSound(action.goOut?"out":"discard");state.selectedCardId=null;render();}catch(error){showToast(error.message);}finally{state.actionBusy=false;}}
+
+    function render(){const s=state.data;if(!s)return;
+      if(!s.lastRound&&s.round<=state.lastRoundShown)state.lastRoundShown=0;
+      els.roundValue.textContent=s.round?`${s.round} of ${s.finalRound}`:"Waiting";
+      els.roundDetail.textContent=s.round?`${s.cardsPerPlayer} cards each`:"3 cards begin the game";
+      els.wildBanner.hidden=!s.wildRank;els.wildRank.textContent=s.wildRank?rankLabel(s.wildRank):"";
+      els.turnNote.textContent=s.prompt||"Five Crowns";
+      renderScores(s);renderPlayers(s);renderPiles(s);renderHand(s);renderControls(s);renderHistory(s);renderChat(s);
+      if((s.phase==="roundEnd"||s.phase==="gameover")&&s.lastRound&&state.lastRoundShown!==s.round){state.lastRoundShown=s.round;showRoundScore(s);}
+    }
+
+    function renderScores(s){els.scoreRows.innerHTML=(s.seats||PLAYER_NAMES.map((name,seat)=>({name,seat}))).map((player,seat)=>`<div class="score-row"><div class="score-name">${escapeHtml(player.name)}<span class="score-note">${player.bot?"Bot":player.connected?"Live":"Waiting"}</span></div><div class="score-number">${s.scores?.[seat]||0}</div></div>`).join("");}
+    function renderPlayers(s){for(let seat=0;seat<3;seat++){const player=document.getElementById(`player${seat}`),info=s.seats?.[seat];player.classList.toggle("active",s.phase==="playing"&&s.turn===seat);player.classList.toggle("out",s.outPlayer===seat);document.getElementById(`detail${seat}`).textContent=s.outPlayer===seat?"Went out":`${info?.bot?"Bot":info?.connected?"Live":"Waiting"} · ${s.handCounts?.[seat]||0} cards`;const badges=[];if(s.dealer===seat&&s.round)badges.push('<span class="badge">DEALER</span>');if(s.outPlayer===seat)badges.push('<span class="badge out-badge">OUT</span>');if(s.finalTurns?.includes(seat))badges.push('<span class="badge">FINAL TURN</span>');document.getElementById(`badges${seat}`).innerHTML=badges.join("");}}
+    function renderPiles(s){els.stockCount.textContent=s.stockCount||0;const canDraw=s.phase==="playing"&&s.turn===state.seat&&s.turnStage==="draw";els.stockPile.classList.toggle("actionable",canDraw);els.stockPile.disabled=!canDraw;els.stockPile.onclick=canDraw?()=>send({action:"draw",source:"stock"}):null;els.discardPile.innerHTML=s.discardTop?cardHtml(s.discardTop,"discard-top"):'<div class="empty-discard">Empty</div>';els.discardPile.classList.toggle("actionable",canDraw&&!!s.discardTop);els.discardPile.disabled=!canDraw||!s.discardTop;els.discardPile.onclick=canDraw&&s.discardTop?()=>send({action:"draw",source:"discard"}):null;}
+    function renderHand(s){els.hand.innerHTML="";const hand=s.hands?.[state.seat]||[],canDiscard=s.phase==="playing"&&s.turn===state.seat&&s.turnStage==="discard";for(const card of hand){const button=document.createElement("button");button.type="button";button.className=`card ${card.joker?"joker":card.suit} ${isWild(card,s)?"wild":""}`;button.setAttribute("aria-label",cardLabel(card));button.innerHTML=cardHtml(card).replace(/^<div[^>]*>|<\/div>$/g,"");button.classList.toggle("selected",state.selectedCardId===card.id);button.classList.toggle("drawn",s.drawnCardId===card.id);button.classList.toggle("go-out-card",s.goOutDiscardIds?.includes(card.id));button.disabled=!canDiscard;button.onclick=()=>{state.selectedCardId=state.selectedCardId===card.id?null:card.id;renderHand(s);renderControls(s);};els.hand.appendChild(button);}}
+
+    function renderControls(s){els.controls.innerHTML="";const add=(label,style,fn,disabled=false)=>{const button=document.createElement("button");button.className=`btn ${style}`.trim();button.textContent=label;button.disabled=disabled;button.onclick=fn;els.controls.appendChild(button);return button;};
+      if(s.phase==="waiting"){if(!state.token)add("Choose Player","primary",choosePlayer);else add("Start Five Crowns","primary",()=>send({action:"start"}));return;}
+      if(s.phase==="playing"&&s.turn===state.seat){if(s.turnStage==="draw"){add("Draw from Pile","primary",()=>send({action:"draw",source:"stock"}));add("Take Discard","",()=>send({action:"draw",source:"discard"}),!s.discardTop);return;}const selected=state.selectedCardId,canGoOut=selected&&s.goOutDiscardIds?.includes(selected);const note=document.createElement("span");note.className="selection-note";note.textContent=selected?"Selected discard":"Select one card to discard";els.controls.appendChild(note);add("Discard","primary",()=>send({action:"discard",cardId:selected}),!selected);if(s.outPlayer===null)add("Go Out","success",()=>send({action:"discard",cardId:selected,goOut:true}),!canGoOut);return;}
+      if(s.phase==="roundEnd"){add(`Deal Round ${s.round+1}`,"primary",()=>{closeModal();send({action:"nextRound"});});return;}
+      if(s.phase==="gameover"){add("Play Again","primary",()=>{state.lastRoundShown=0;closeModal();send({action:"newGame"});});return;}
+      const wait=document.createElement("span");wait.className="selection-note";wait.textContent=s.phase==="playing"?`Waiting for ${s.seats?.[s.turn]?.name||"the next player"}…`:s.prompt;els.controls.appendChild(wait);
+    }
+
+    function renderHistory(s){if(!s.roundHistory?.length){els.historyRows.innerHTML='<div class="round-detail">No rounds scored.</div>';return;}els.historyRows.innerHTML=s.roundHistory.map(item=>`<div class="history-row"><strong>R${item.round}</strong>${item.results.map(result=>`<span>+${result.points}<br><strong>${item.totals[result.seat]}</strong></span>`).join("")}</div>`).join("");els.historyRows.scrollTop=els.historyRows.scrollHeight;}
+    function renderChat(s){els.chatMessages.innerHTML=(s.chat||[]).map(message=>`<div class="chat-message"><b>${escapeHtml(message.name)}</b> ${escapeHtml(message.text)}</div>`).join("");els.chatMessages.scrollTop=els.chatMessages.scrollHeight;}
+    function resultCards(result){const melds=(result.melds||[]).map((meld,index)=>`<div class="meld-block"><div class="meld-title">${meld.type==="book"?"Book":meld.type==="run"?"Run":"Wild meld"} ${index+1}</div><div class="mini-cards">${meld.cards.map(card=>miniCard(card)).join("")}</div></div>`).join("");const deadwood=result.deadwood?.length?`<div class="meld-block"><div class="meld-title">Unused cards</div><div class="mini-cards">${result.deadwood.map(card=>miniCard(card,true)).join("")}</div></div>`:'<div class="meld-block"><div class="meld-title">All cards matched</div></div>';return melds+deadwood;}
+    function showRoundScore(s){const round=s.lastRound,winners=s.winnerSeats||[],winnerText=s.phase==="gameover"?winners.length===1?`${PLAYER_NAMES[winners[0]]} wins the game!`:`${winners.map(seat=>PLAYER_NAMES[seat]).join(" and ")} tie for the win!`:`${PLAYER_NAMES[round.outPlayer]} went out first.`;openModal(`<h2>${s.phase==="gameover"?"Game Complete":`Round ${round.round} Complete`}</h2><p class="modal-summary">${escapeHtml(winnerText)} ${rankLabel(round.wildRank)}s were wild.</p><div class="summary-grid">${round.results.map(result=>`<section class="summary-card"><h3>${escapeHtml(result.name)}</h3><div class="round-points">+${result.points}</div><div class="total-score">Total score: ${round.totals[result.seat]}</div>${resultCards(result)}</section>`).join("")}</div><div class="modal-actions">${s.phase==="gameover"?'<button class="btn" id="reviewButton">Review Table</button><button class="btn primary" id="playAgainButton">Play Again</button>':`<button class="btn primary" id="nextRoundButton">Deal Round ${s.round+1}</button>`}</div>`);playSound(s.phase==="gameover"?"win":"score");if(s.phase==="gameover"){launchConfetti();document.getElementById("reviewButton").onclick=closeModal;document.getElementById("playAgainButton").onclick=()=>{state.lastRoundShown=0;closeModal();send({action:"newGame"});};}else document.getElementById("nextRoundButton").onclick=()=>{closeModal();send({action:"nextRound"});};}
+
+    function choosePlayer(){openModal(`<h2>Choose Your Player</h2><p class="modal-summary">Unclaimed seats become bots when the game starts.</p><div class="join-grid">${PLAYER_NAMES.map(name=>`<button class="join-choice" data-player="${name}">${name}</button>`).join("")}</div>`);els.modal.querySelectorAll("[data-player]").forEach(button=>button.onclick=async()=>{try{const data=await api("/api/join",{method:"POST",body:JSON.stringify({name:button.dataset.player,token:state.token})});state.token=data.token;state.seat=data.seat;state.name=data.name;state.data=data.state;localStorage.setItem(SESSION_KEY,JSON.stringify({token:state.token,seat:state.seat,name:state.name}));closeModal();startPolling();render();}catch(error){showToast(error.message);}});}
+    function showRules(){openModal(`<h2>How to Play</h2><p class="modal-summary">The goal is to have the lowest total score after all eleven rounds.</p><ol class="rules-list"><li>Round 1 deals 3 cards to each player. Each new round adds one card, ending with 13 cards in Round 11.</li><li>The rank matching the hand size is wild: 3s in Round 1 through Kings in Round 11. Jokers are always wild.</li><li>On your turn, draw from the stock or take the top discard, then discard one card.</li><li>A <strong>book</strong> is three or more cards of one rank. A <strong>run</strong> is three or more consecutive cards of one suit. Wild cards may fill either.</li><li>To go out, the cards left after your discard must all form books and/or runs. The other players each receive one final turn.</li><li>Only unmatched cards score: numbers at face value, J=11, Q=12, K=13, current wilds=20, Jokers=50.</li><li>The player with the lowest total after Round 11 wins.</li></ol><div class="modal-actions"><button class="btn primary" id="closeRules">Return to Game</button></div>`);document.getElementById("closeRules").onclick=closeModal;}
+    function openSettings(){openModal(`<h2>Game Settings</h2><div class="settings-grid"><label class="field">Table theme<select id="themeSetting"><option value="classic" ${prefs.theme==="classic"?"selected":""}>Royal Purple</option><option value="casual" ${prefs.theme==="casual"?"selected":""}>Casual Blue</option></select></label><label class="field">Sound effects<select id="soundSetting"><option value="on" ${prefs.sound?"selected":""}>On</option><option value="off" ${!prefs.sound?"selected":""}>Off</option></select></label></div><div class="modal-actions"><button class="btn" id="cancelSettings">Cancel</button><button class="btn primary" id="saveSettings">Save</button></div>`);document.getElementById("cancelSettings").onclick=closeModal;document.getElementById("saveSettings").onclick=()=>{prefs.theme=document.getElementById("themeSetting").value;prefs.sound=document.getElementById("soundSetting").value==="on";localStorage.setItem(PREF_KEY,JSON.stringify(prefs));document.body.dataset.theme=prefs.theme;closeModal();showToast("Settings saved");};}
+
+    function playSound(kind){if(!prefs.sound)return;try{const context=playSound.context||(playSound.context=new (window.AudioContext||window.webkitAudioContext)());const oscillator=context.createOscillator(),gain=context.createGain();const tones={draw:330,discard:220,out:620,score:470,win:740};oscillator.frequency.value=tones[kind]||300;oscillator.type=kind==="win"?"triangle":"sine";gain.gain.setValueAtTime(.055,context.currentTime);gain.gain.exponentialRampToValueAtTime(.001,context.currentTime+.18);oscillator.connect(gain).connect(context.destination);oscillator.start();oscillator.stop(context.currentTime+.19);}catch(error){}}
+    function launchConfetti(){const colors=["#f3c55a","#d64b56","#269a68","#9c55c6","#fff4ce"];for(let index=0;index<80;index++){const piece=document.createElement("div");piece.className="confetti";piece.style.left=`${Math.random()*100}vw`;piece.style.background=colors[index%colors.length];piece.style.animationDelay=`${Math.random()*.8}s`;piece.style.transform=`rotate(${Math.random()*360}deg)`;document.body.appendChild(piece);setTimeout(()=>piece.remove(),4100);}}
+
+    async function poll(){if(!state.token||state.actionBusy)return;try{const data=await api(`/api/state?token=${encodeURIComponent(state.token)}`);state.data=data.state;if(state.selectedCardId&&!state.data.hands?.[state.seat]?.some(card=>card.id===state.selectedCardId))state.selectedCardId=null;render();}catch(error){clearInterval(state.poll);clearInterval(state.heartbeat);showToast("Local game server is not available.");}}
+    async function heartbeat(){if(!state.token)return;try{await api("/api/heartbeat",{method:"POST",body:JSON.stringify({token:state.token})});}catch(error){}}
+    function startPolling(){clearInterval(state.poll);clearInterval(state.heartbeat);state.poll=setInterval(poll,700);state.heartbeat=setInterval(heartbeat,3500);}
+
+    els.chatForm.addEventListener("submit",event=>{event.preventDefault();const text=els.chatInput.value.trim();if(!text)return;els.chatInput.value="";send({action:"chat",text});});
+    els.backdrop.addEventListener("click",event=>{if(event.target===els.backdrop)closeModal();});
+    document.getElementById("rulesButton").onclick=showRules;document.getElementById("localRulesButton").onclick=showRules;document.getElementById("settingsButton").onclick=openSettings;document.getElementById("playerButton").onclick=choosePlayer;document.getElementById("newGameButton").onclick=()=>{if(!state.token)return choosePlayer();state.lastRoundShown=0;closeModal();send({action:"newGame"});};
+
+    (async function boot(){const saved=JSON.parse(localStorage.getItem(SESSION_KEY)||"null");if(saved?.token){state.token=saved.token;state.seat=saved.seat;state.name=saved.name;try{await poll();startPolling();return;}catch(error){}}choosePlayer();})();
+  </script>
+</body>
+</html>
