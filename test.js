@@ -54,12 +54,17 @@ assert.match(client,/choose your player\/i\.test\(error\.message\)/,'An expired 
 assert.match(client,/id="saveGameButton"/,'The sidebar must provide a Save Game button.');
 assert.match(client,/id="loadGameButton"/,'The sidebar must provide a Resume Game button.');
 assert.match(client,/drawn&&!isWild\(drawn,state\.data\)\?drawn\.id:null/,'A newly drawn normal card must start selected while a wild card stays down.');
-assert.match(client,/add\("Sort Cards"/,'The controls must provide a Sort Cards button.');
+assert.doesNotMatch(client,/add\("Sort Cards"/,'Sorting must happen automatically without a Sort Cards button.');
 assert.match(client,/if\(aWild!==bWild\)return aWild\?1:-1/,'Sorting must place wild cards on the right.');
+assert.match(client,/newRound\|\|newDraw/,'The hand must sort at the start of a round and after drawing a card.');
+assert.match(client,/id="handPoints"/,'The player hand must include a private current-points display.');
 assert.doesNotMatch(client,/Review Table/,'The final score popup must not offer Review Table.');
 assert.match(client,/async function animateDiscard\(cardId\)/,'Discarding must animate the selected card toward the discard pile.');
 assert.match(client,/if\(action\.action==="discard"\)await animateDiscard\(action\.cardId\)/,'The discard animation must complete before the server updates the hand.');
 assert.doesNotMatch(client,/Selected discard|Select one card to discard|Waiting for/,'The bottom controls must not include instructional status text.');
+const serverSource = fs.readFileSync(require.resolve('./server.js'), 'utf8');
+assert.match(serverSource,/handPoints: seat >= 0 && game\.round \? analyzeHand\(ownHand, wildRank\(\)\)\.penalty : null/,'The server must expose only the requesting player\'s current hand points.');
+assert.doesNotMatch(serverSource,/handPoints:\s*game\.hands\.map/,'The server must never expose every player\'s private hand points.');
 assert.strictEqual(decodeSaveCode('not-a-save'),null,'Invalid save codes must be rejected.');
 
 console.log('Five Crowns rule-engine tests passed.');
