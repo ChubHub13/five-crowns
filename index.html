@@ -142,7 +142,6 @@
 
     .controls { min-height:68px; display:flex; align-items:center; justify-content:center; gap:8px; padding:8px; border:1px solid var(--line); border-radius:14px; background:var(--panel); overflow-x:auto; }
     .controls .btn { min-width:120px; }
-    .selection-note { color:var(--muted); font-size:11px; font-weight:700; }
 
     .backdrop { position:fixed; z-index:50; inset:0; display:grid; place-items:center; padding:10px; background:rgba(5,2,8,.78); opacity:0; pointer-events:none; transition:opacity .15s ease; }
     .backdrop.open { opacity:1; pointer-events:auto; }
@@ -205,12 +204,12 @@
     }
   </style>
 </head>
-<body data-theme="classic" data-version="2.0.9">
+<body data-theme="classic" data-version="2.0.10">
   <main class="app">
     <header class="topbar">
       <div class="brand">
         <div class="crown-mark">♛</div>
-        <div><h1>FIVE CROWNS <span class="version">v2.0.9</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
+        <div><h1>FIVE CROWNS <span class="version">v2.0.10</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
       </div>
       <div class="top-actions"><button class="btn small" id="rulesButton">Rules</button><button class="btn small" id="settingsButton">Settings</button></div>
     </header>
@@ -251,7 +250,7 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    const APP_VERSION="2.0.9";
+    const APP_VERSION="2.0.10";
     const PLAYER_NAMES=["Daryl","Cristi","Cindy"];
     const SUIT_SYMBOLS={stars:"★",hearts:"♥",clubs:"♣",spades:"♠",diamonds:"♦"};
     const SESSION_KEY="threeHandedFiveCrownsSession";
@@ -315,10 +314,9 @@
     function renderControls(s){els.controls.innerHTML="";const add=(label,style,fn,disabled=false)=>{const button=document.createElement("button");button.className=`btn ${style}`.trim();button.textContent=label;button.disabled=disabled;button.onclick=fn;els.controls.appendChild(button);return button;};
       if(s.phase==="waiting"){if(!state.token)add("Choose Player","primary",choosePlayer);else add("Start Five Crowns","primary",()=>send({action:"start"}));return;}
       if(s.phase==="playing"&&(s.hands?.[state.seat]?.length||0))add("Sort Cards","",()=>sortHandByRank(s));
-      if(s.phase==="playing"&&s.turn===state.seat){if(s.turnStage==="draw"){add("Draw from Pile","primary",()=>send({action:"draw",source:"stock"}));add("Take Discard","",()=>send({action:"draw",source:"discard"}),!s.discardTop);return;}const selected=state.selectedCardId,canGoOut=selected&&s.goOutDiscardIds?.includes(selected);const note=document.createElement("span");note.className="selection-note";note.textContent=selected?"Selected discard":"Select one card to discard";els.controls.appendChild(note);add("Discard","primary",()=>send({action:"discard",cardId:selected}),!selected);if(s.outPlayer===null)add("Go Out","success",()=>send({action:"discard",cardId:selected,goOut:true}),!canGoOut);return;}
+      if(s.phase==="playing"&&s.turn===state.seat){if(s.turnStage==="draw"){add("Draw from Pile","primary",()=>send({action:"draw",source:"stock"}));add("Take Discard","",()=>send({action:"draw",source:"discard"}),!s.discardTop);return;}const selected=state.selectedCardId,canGoOut=selected&&s.goOutDiscardIds?.includes(selected);add("Discard","primary",()=>send({action:"discard",cardId:selected}),!selected);if(s.outPlayer===null)add("Go Out","success",()=>send({action:"discard",cardId:selected,goOut:true}),!canGoOut);return;}
       if(s.phase==="roundEnd"){add(`Deal Round ${s.round+1}`,"primary",()=>{closeModal();send({action:"nextRound"});});return;}
       if(s.phase==="gameover"){add("Play Again","primary",()=>{state.lastRoundShown=0;closeModal();send({action:"newGame"});});return;}
-      const wait=document.createElement("span");wait.className="selection-note";wait.textContent=s.phase==="playing"?`Waiting for ${s.seats?.[s.turn]?.name||"the next player"}…`:s.prompt;els.controls.appendChild(wait);
     }
 
     function renderHistory(s){if(!s.roundHistory?.length){els.historyRows.innerHTML='<div class="round-detail">No rounds scored.</div>';return;}els.historyRows.innerHTML=s.roundHistory.map(item=>`<div class="history-row"><strong>R${item.round}</strong>${item.results.map(result=>`<span>+${result.points}<br><strong>${item.totals[result.seat]}</strong></span>`).join("")}</div>`).join("");els.historyRows.scrollTop=els.historyRows.scrollHeight;}
