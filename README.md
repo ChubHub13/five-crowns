@@ -1,4 +1,4 @@
-# Three-Handed Five Crowns v2.0.8
+# Three-Handed Five Crowns v2.0.9
 
 A local three-player Five Crowns game for Daryl, Cristi, and Cindy. It preserves the fixed-player, live-seat, bot-fallback, chat, settings, table, sound, animation, and score-popup structure of the earlier three-handed card game while replacing the Rook rules and deck.
 
