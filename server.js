@@ -5,7 +5,7 @@ const crypto = require('crypto');
 
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
-const VERSION = '2.0.10';
+const VERSION = '2.0.11';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['stars', 'hearts', 'clubs', 'spades', 'diamonds'];
 const RANKS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -431,6 +431,7 @@ function publicState(seat) {
     turnStage: game.turnStage,
     scores: game.scores,
     hands: [0, 1, 2].map(player => player === seat ? ownHand : []),
+    handPoints: seat >= 0 && game.round ? analyzeHand(ownHand, wildRank()).penalty : null,
     handCounts: game.hands.map((hand, player) => player === game.outPlayer ? 0 : hand.length),
     stockCount: game.stock.length,
     discardTop,
