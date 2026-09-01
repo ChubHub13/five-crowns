@@ -52,6 +52,10 @@ assert.match(client,/innerHTML=`LAST TURN/,'The went-out announcement must clear
 assert.match(client,/choose your player\/i\.test\(error\.message\)/,'An expired saved session must return the visitor to player selection.');
 assert.match(client,/id="saveGameButton"/,'The sidebar must provide a Save Game button.');
 assert.match(client,/id="loadGameButton"/,'The sidebar must provide a Resume Game button.');
+assert.match(client,/drawn&&!isWild\(drawn,state\.data\)\?drawn\.id:null/,'A newly drawn normal card must start selected while a wild card stays down.');
+assert.match(client,/add\("Sort Cards"/,'The controls must provide a Sort Cards button.');
+assert.match(client,/if\(aWild!==bWild\)return aWild\?1:-1/,'Sorting must place wild cards on the right.');
+assert.doesNotMatch(client,/Review Table/,'The final score popup must not offer Review Table.');
 assert.strictEqual(decodeSaveCode('not-a-save'),null,'Invalid save codes must be rejected.');
 
 console.log('Five Crowns rule-engine tests passed.');
