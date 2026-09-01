@@ -1,4 +1,5 @@
 const assert = require('assert');
+const fs = require('fs');
 const { buildDeck, meldType, analyzeHand, bestDiscard, cardPoints, isWild } = require('./server');
 
 const card = (id, suit, rank, joker = false) => ({ id, suit: joker ? 'joker' : suit, rank: joker ? 0 : rank, joker, deck: 0 });
@@ -38,5 +39,15 @@ assert.strictEqual(isWild(card('king','stars',13),13),true);
 const discardChoice = bestDiscard([...perfect,card('king','clubs',13)],3);
 assert.strictEqual(discardChoice.card.id,'king','The bot should discard isolated high deadwood.');
 assert.strictEqual(discardChoice.analysis.penalty,0);
+
+const client = fs.readFileSync(require.resolve('./index.html'), 'utf8');
+assert.match(client,/button\.onmousedown=/,'Human cards must support direct mouse dragging.');
+assert.match(client,/moveDraggedCard\(drag\.targetId/,'A completed pointer drag must update the saved hand order.');
+assert.match(client,/HAND_ORDER_KEY/,'The chosen card order must survive normal state polling.');
+assert.match(client,/button\.card:hover[^}]+transform:none/,'Hovering a hand card must not move it.');
+assert.match(client,/button\.card\.selected:hover[^}]+translateY\(-16px\)/,'A selected card must stay steady when hovered.');
+assert.match(client,/finalTurnAlert/,'The table must display a prominent final-turn warning.');
+assert.match(client,/round-event-pop 5s/,'The last-turn popup must remain visible for five seconds.');
+assert.match(client,/innerHTML=`LAST TURN/,'The went-out announcement must clearly say LAST TURN.');
 
 console.log('Five Crowns rule-engine tests passed.');
