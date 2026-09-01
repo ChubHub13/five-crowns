@@ -59,6 +59,7 @@ assert.match(client,/if\(aWild!==bWild\)return aWild\?1:-1/,'Sorting must place 
 assert.doesNotMatch(client,/Review Table/,'The final score popup must not offer Review Table.');
 assert.match(client,/async function animateDiscard\(cardId\)/,'Discarding must animate the selected card toward the discard pile.');
 assert.match(client,/if\(action\.action==="discard"\)await animateDiscard\(action\.cardId\)/,'The discard animation must complete before the server updates the hand.');
+assert.doesNotMatch(client,/Selected discard|Select one card to discard|Waiting for/,'The bottom controls must not include instructional status text.');
 assert.strictEqual(decodeSaveCode('not-a-save'),null,'Invalid save codes must be rejected.');
 
 console.log('Five Crowns rule-engine tests passed.');
