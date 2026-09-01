@@ -117,6 +117,7 @@
     .card.drop-before { box-shadow:-7px 0 0 #ffe07a,0 7px 15px rgba(0,0,0,.33); }
     .card.drop-after { box-shadow:7px 0 0 #ffe07a,0 7px 15px rgba(0,0,0,.33); }
     .card.drawn { box-shadow:0 0 0 3px #77dba7,0 8px 17px rgba(0,0,0,.36); }
+    .discard-flight { position:fixed !important; z-index:80; margin:0 !important; pointer-events:none; transform-origin:center; }
     .card.go-out-card::after { content:"GO OUT"; position:absolute; left:50%; bottom:-18px; transform:translateX(-50%); padding:2px 5px; border-radius:5px; color:#062116; background:#78dfaa; font-size:7px; font-weight:1000; white-space:nowrap; }
     .card.stars { --suit:var(--stars); } .card.hearts { --suit:var(--hearts); } .card.clubs { --suit:var(--clubs); } .card.spades { --suit:var(--spades); } .card.diamonds { --suit:var(--diamonds); }
     .card.joker { --suit:#7850a7; color:#3a164a; background:linear-gradient(145deg,#fff9de,#e5d5f0); }
@@ -204,12 +205,12 @@
     }
   </style>
 </head>
-<body data-theme="classic" data-version="2.0.7">
+<body data-theme="classic" data-version="2.0.8">
   <main class="app">
     <header class="topbar">
       <div class="brand">
         <div class="crown-mark">♛</div>
-        <div><h1>FIVE CROWNS <span class="version">v2.0.7</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
+        <div><h1>FIVE CROWNS <span class="version">v2.0.8</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
       </div>
       <div class="top-actions"><button class="btn small" id="rulesButton">Rules</button><button class="btn small" id="settingsButton">Settings</button></div>
     </header>
@@ -250,7 +251,7 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    const APP_VERSION="2.0.7";
+    const APP_VERSION="2.0.8";
     const PLAYER_NAMES=["Daryl","Cristi","Cindy"];
     const SUIT_SYMBOLS={stars:"★",hearts:"♥",clubs:"♣",spades:"♠",diamonds:"♦"};
     const SESSION_KEY="threeHandedFiveCrownsSession";
@@ -279,7 +280,8 @@
     function closeModal(){els.backdrop.classList.remove("open");els.modal.innerHTML="";}
 
     async function api(path,options={}){const response=await fetch(API+path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});const data=await response.json();if(!response.ok||data.ok===false)throw new Error(data.message||"Request failed");return data;}
-    async function send(action){if(state.actionBusy)return;state.actionBusy=true;try{const data=await api("/api/action",{method:"POST",body:JSON.stringify({token:state.token,...action})});state.data=data.state;if(action.action==="draw"){playSound("draw");const drawn=state.data.hands?.[state.seat]?.find(card=>card.id===state.data.drawnCardId);state.selectedCardId=drawn&&!isWild(drawn,state.data)?drawn.id:null;}if(action.action==="discard"){playSound(action.goOut?"out":"discard");state.selectedCardId=null;}render();}catch(error){showToast(error.message);}finally{state.actionBusy=false;}}
+    async function animateDiscard(cardId){const source=[...els.hand.querySelectorAll("button.card")].find(card=>card.dataset.cardId===cardId);if(!source||!els.discardPile)return;const start=source.getBoundingClientRect(),target=els.discardPile.getBoundingClientRect(),clone=source.cloneNode(true);clone.classList.remove("selected","drawn","go-out-card","dragging","drop-before","drop-after");clone.classList.add("discard-flight");clone.style.left=`${start.left}px`;clone.style.top=`${start.top}px`;clone.style.width=`${start.width}px`;clone.style.height=`${start.height}px`;document.body.appendChild(clone);const dx=target.left+target.width/2-(start.left+start.width/2),dy=target.top+target.height/2-(start.top+start.height/2),duration=matchMedia("(prefers-reduced-motion: reduce)").matches?140:420;try{await clone.animate([{transform:"translate(0,0) scale(1) rotate(0deg)",opacity:1},{transform:`translate(${dx}px,${dy}px) scale(.82) rotate(9deg)`,opacity:.9}],{duration,easing:"cubic-bezier(.22,.8,.25,1)",fill:"forwards"}).finished;}catch(error){}clone.remove();}
+    async function send(action){if(state.actionBusy)return;state.actionBusy=true;try{if(action.action==="discard")await animateDiscard(action.cardId);const data=await api("/api/action",{method:"POST",body:JSON.stringify({token:state.token,...action})});state.data=data.state;if(action.action==="draw"){playSound("draw");const drawn=state.data.hands?.[state.seat]?.find(card=>card.id===state.data.drawnCardId);state.selectedCardId=drawn&&!isWild(drawn,state.data)?drawn.id:null;}if(action.action==="discard"){playSound(action.goOut?"out":"discard");state.selectedCardId=null;}render();}catch(error){document.querySelectorAll(".discard-flight").forEach(card=>card.remove());showToast(error.message);}finally{state.actionBusy=false;}}
 
     function render(){const s=state.data;if(!s)return;
       if(!s.lastRound&&s.round<=state.lastRoundShown)state.lastRoundShown=0;
