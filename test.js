@@ -57,7 +57,9 @@ assert.match(client,/id="loadGameButton"/,'The sidebar must provide a Resume Gam
 assert.match(client,/drawn&&!isWild\(drawn,state\.data\)\?drawn\.id:null/,'A newly drawn normal card must start selected while a wild card stays down.');
 assert.doesNotMatch(client,/add\("Sort Cards"/,'Sorting must happen automatically without a Sort Cards button.');
 assert.match(client,/if\(aWild!==bWild\)return aWild\?1:-1/,'Sorting must place wild cards on the right.');
-assert.match(client,/newRound\|\|newDraw/,'The hand must sort at the start of a round and after drawing a card.');
+assert.match(client,/if\(newRound\)\{sortHandOrder/,'The full hand must sort only at the start of a round.');
+assert.match(client,/else if\(newDraw\)\{insertDrawnCardOrder/,'A draw must insert only the new card without sorting the existing cards.');
+assert.match(client,/const existingIds=state\.handOrder\.filter/,'A player\'s custom card order must remain intact after drawing.');
 assert.match(client,/id="handPoints"/,'The player hand must include a private current-points display.');
 assert.match(client,/desired=card\.right-zone\.left\+card\.width/,'The hand-points badge must sit one card width to the right of the cards.');
 assert.match(client,/requestAnimationFrame\(positionHandPoints\)/,'The hand-points position must update after every hand render.');
