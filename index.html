@@ -102,9 +102,9 @@
       linear-gradient(-45deg,transparent 46%,rgba(255,255,255,.12) 47% 53%,transparent 54%),#4c1e5f; background-size:16px 16px; box-shadow:3px 5px 0 #1b0c22,0 8px 18px rgba(0,0,0,.32); font:900 29px Georgia,serif; }
     .stock-count { position:absolute; right:-7px; bottom:-7px; min-width:24px; padding:4px; border-radius:99px; color:#25112e; background:var(--gold); font-size:10px; font-weight:900; }
 
-    .hand-zone { position:absolute; z-index:5; left:145px; right:12px; bottom:5px; height:135px; display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; overflow:visible; }
+    .hand-zone { position:absolute; z-index:5; left:145px; right:12px; bottom:5px; height:135px; overflow:visible; }
     .hand { height:100%; display:flex; align-items:flex-end; justify-content:center; padding:7px 8px; overflow:visible; }
-    .hand-points { align-self:end; min-width:72px; margin:0 3px 18px 7px; padding:7px 9px; border:1px solid rgba(243,197,90,.35); border-radius:10px; color:#ffe29a; background:rgba(13,7,17,.9); box-shadow:0 4px 12px rgba(0,0,0,.3); font:900 11px/1.15 Georgia,serif; text-align:center; white-space:nowrap; }
+    .hand-points { position:absolute; left:0; bottom:18px; min-width:72px; padding:7px 9px; border:1px solid rgba(243,197,90,.35); border-radius:10px; color:#ffe29a; background:rgba(13,7,17,.9); box-shadow:0 4px 12px rgba(0,0,0,.3); font:900 11px/1.15 Georgia,serif; text-align:center; white-space:nowrap; }
     .card { --suit:#555; position:relative; width:var(--card-w); height:var(--card-h); flex:0 0 auto; margin-left:-19px; padding:0; border:2px solid #eee3c7; border-radius:10px; color:#1d1720; background:linear-gradient(150deg,#fffef9,#eee8d8); box-shadow:0 7px 15px rgba(0,0,0,.33); user-select:none; touch-action:none; transition:transform .14s ease,filter .14s ease; }
     .card:first-child { margin-left:0; }
     button.card { cursor:grab; }
@@ -205,12 +205,12 @@
     }
   </style>
 </head>
-<body data-theme="classic" data-version="2.0.12">
+<body data-theme="classic" data-version="2.0.13">
   <main class="app">
     <header class="topbar">
       <div class="brand">
         <div class="crown-mark">♛</div>
-        <div><h1>FIVE CROWNS <span class="version">v2.0.12</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
+        <div><h1>FIVE CROWNS <span class="version">v2.0.13</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
       </div>
       <div class="top-actions"><button class="btn small" id="rulesButton">Rules</button><button class="btn small" id="settingsButton">Settings</button></div>
     </header>
@@ -251,7 +251,7 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    const APP_VERSION="2.0.12";
+    const APP_VERSION="2.0.13";
     const PLAYER_NAMES=["Daryl","Cristi","Cindy"];
     const SUIT_SYMBOLS={stars:"★",hearts:"♥",clubs:"♣",spades:"♠",diamonds:"♦"};
     const SESSION_KEY="threeHandedFiveCrownsSession";
@@ -310,7 +310,9 @@
     function finishMouseDrag(event){const drag=state.pointerDrag;if(!drag)return;const wasActive=drag.active;if(wasActive&&drag.targetId)moveDraggedCard(drag.targetId,drag.placeAfter);if(wasActive){event.preventDefault();state.suppressCardClickUntil=Date.now()+300;}state.draggedCardId=null;state.pointerDrag=null;clearDropTargets();drag.button.classList.remove("dragging");if(wasActive&&state.data)renderHand(state.data);}
     document.addEventListener("mousemove",updateMouseDrag);
     document.addEventListener("mouseup",finishMouseDrag);
-    function renderHand(s){els.hand.innerHTML="";const rawHand=s.hands?.[state.seat]||[],newRound=s.round&&state.autoSortRound!==s.round,newDraw=s.drawnCardId&&state.autoSortDrawnId!==s.drawnCardId;if(newRound||newDraw){sortHandOrder(s,rawHand);state.autoSortRound=s.round;state.autoSortDrawnId=s.drawnCardId||null;}else if(!s.drawnCardId)state.autoSortDrawnId=null;const hand=orderedHand(rawHand),canDiscard=s.phase==="playing"&&s.turn===state.seat&&s.turnStage==="discard";els.handPoints.hidden=!hand.length||!Number.isFinite(s.handPoints);els.handPoints.textContent=Number.isFinite(s.handPoints)?`${s.handPoints} pts`:"";for(const card of hand){const button=document.createElement("button");button.type="button";button.draggable=false;button.dataset.cardId=card.id;button.className=`card ${card.joker?"joker":card.suit} ${isWild(card,s)?"wild":""}`;button.setAttribute("aria-label",cardLabel(card));button.setAttribute("aria-disabled",String(!canDiscard));button.innerHTML=cardHtml(card).replace(/^<div[^>]*>|<\/div>$/g,"");button.classList.toggle("inactive",!canDiscard);button.classList.toggle("selected",state.selectedCardId===card.id);button.classList.toggle("drawn",s.drawnCardId===card.id);button.classList.toggle("go-out-card",s.goOutDiscardIds?.includes(card.id));button.onclick=()=>{if(!canDiscard||Date.now()<state.suppressCardClickUntil)return;state.selectedCardId=state.selectedCardId===card.id?null:card.id;renderHand(s);renderControls(s);};button.onmousedown=event=>beginMouseDrag(event,card.id,button);els.hand.appendChild(button);}}
+    function positionHandPoints(){const lastCard=els.hand.lastElementChild;if(!lastCard||els.handPoints.hidden)return;const zone=els.hand.parentElement.getBoundingClientRect(),card=lastCard.getBoundingClientRect(),badgeWidth=els.handPoints.offsetWidth,desired=card.right-zone.left+card.width,maximum=Math.max(0,zone.width-badgeWidth);els.handPoints.style.left=`${Math.max(0,Math.min(desired,maximum))}px`;}
+    window.addEventListener("resize",positionHandPoints);
+    function renderHand(s){els.hand.innerHTML="";const rawHand=s.hands?.[state.seat]||[],newRound=s.round&&state.autoSortRound!==s.round,newDraw=s.drawnCardId&&state.autoSortDrawnId!==s.drawnCardId;if(newRound||newDraw){sortHandOrder(s,rawHand);state.autoSortRound=s.round;state.autoSortDrawnId=s.drawnCardId||null;}else if(!s.drawnCardId)state.autoSortDrawnId=null;const hand=orderedHand(rawHand),canDiscard=s.phase==="playing"&&s.turn===state.seat&&s.turnStage==="discard";els.handPoints.hidden=!hand.length||!Number.isFinite(s.handPoints);els.handPoints.textContent=Number.isFinite(s.handPoints)?`${s.handPoints} pts`:"";for(const card of hand){const button=document.createElement("button");button.type="button";button.draggable=false;button.dataset.cardId=card.id;button.className=`card ${card.joker?"joker":card.suit} ${isWild(card,s)?"wild":""}`;button.setAttribute("aria-label",cardLabel(card));button.setAttribute("aria-disabled",String(!canDiscard));button.innerHTML=cardHtml(card).replace(/^<div[^>]*>|<\/div>$/g,"");button.classList.toggle("inactive",!canDiscard);button.classList.toggle("selected",state.selectedCardId===card.id);button.classList.toggle("drawn",s.drawnCardId===card.id);button.classList.toggle("go-out-card",s.goOutDiscardIds?.includes(card.id));button.onclick=()=>{if(!canDiscard||Date.now()<state.suppressCardClickUntil)return;state.selectedCardId=state.selectedCardId===card.id?null:card.id;renderHand(s);renderControls(s);};button.onmousedown=event=>beginMouseDrag(event,card.id,button);els.hand.appendChild(button);}requestAnimationFrame(positionHandPoints);}
 
     function renderControls(s){els.controls.innerHTML="";const add=(label,style,fn,disabled=false)=>{const button=document.createElement("button");button.className=`btn ${style}`.trim();button.textContent=label;button.disabled=disabled;button.onclick=fn;els.controls.appendChild(button);return button;};
       if(s.phase==="waiting"){if(!state.token)add("Choose Player","primary",choosePlayer);else add("Start Five Crowns","primary",()=>send({action:"start"}));return;}
