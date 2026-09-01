@@ -1,6 +1,6 @@
 {
   "name": "three-handed-five-crowns",
-  "version": "2.0.5",
+  "version": "2.0.7",
   "private": true,
   "description": "Three-player Five Crowns for Daryl, Cristi, and Cindy",
   "scripts": {
