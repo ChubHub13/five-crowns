@@ -204,12 +204,12 @@
     }
   </style>
 </head>
-<body data-theme="classic" data-version="2.0.5">
+<body data-theme="classic" data-version="2.0.6">
   <main class="app">
     <header class="topbar">
       <div class="brand">
         <div class="crown-mark">♛</div>
-        <div><h1>FIVE CROWNS <span class="version">v2.0.5</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
+        <div><h1>FIVE CROWNS <span class="version">v2.0.6</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
       </div>
       <div class="top-actions"><button class="btn small" id="rulesButton">Rules</button><button class="btn small" id="settingsButton">Settings</button></div>
     </header>
@@ -250,7 +250,7 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    const APP_VERSION="2.0.5";
+    const APP_VERSION="2.0.6";
     const PLAYER_NAMES=["Daryl","Cristi","Cindy"];
     const SUIT_SYMBOLS={stars:"★",hearts:"♥",clubs:"♣",spades:"♠",diamonds:"♦"};
     const SESSION_KEY="threeHandedFiveCrownsSession";
@@ -279,7 +279,7 @@
     function closeModal(){els.backdrop.classList.remove("open");els.modal.innerHTML="";}
 
     async function api(path,options={}){const response=await fetch(API+path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});const data=await response.json();if(!response.ok||data.ok===false)throw new Error(data.message||"Request failed");return data;}
-    async function send(action){if(state.actionBusy)return;state.actionBusy=true;try{const data=await api("/api/action",{method:"POST",body:JSON.stringify({token:state.token,...action})});state.data=data.state;if(action.action==="draw")playSound("draw");if(action.action==="discard")playSound(action.goOut?"out":"discard");state.selectedCardId=null;render();}catch(error){showToast(error.message);}finally{state.actionBusy=false;}}
+    async function send(action){if(state.actionBusy)return;state.actionBusy=true;try{const data=await api("/api/action",{method:"POST",body:JSON.stringify({token:state.token,...action})});state.data=data.state;if(action.action==="draw"){playSound("draw");state.selectedCardId=state.data.drawnCardId;}if(action.action==="discard"){playSound(action.goOut?"out":"discard");state.selectedCardId=null;}render();}catch(error){showToast(error.message);}finally{state.actionBusy=false;}}
 
     function render(){const s=state.data;if(!s)return;
       if(!s.lastRound&&s.round<=state.lastRoundShown)state.lastRoundShown=0;
