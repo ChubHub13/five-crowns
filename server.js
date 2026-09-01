@@ -5,7 +5,7 @@ const crypto = require('crypto');
 
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
-const VERSION = '2.0.4';
+const VERSION = '2.0.5';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['stars', 'hearts', 'clubs', 'spades', 'diamonds'];
 const RANKS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -237,6 +237,46 @@ function startGame() {
   return dealRound();
 }
 
+const SAVE_FIELDS = ['phase', 'round', 'dealer', 'turn', 'turnStage', 'scores', 'hands', 'laidDown', 'stock', 'discard', 'drawnCardId', 'outPlayer', 'finalTurns', 'lastRound', 'roundHistory', 'winnerSeats', 'bot', 'chat', 'prompt'];
+
+function createSaveCode() {
+  const snapshot = { saveVersion: 1, gameVersion: VERSION, savedAt: Date.now() };
+  for (const field of SAVE_FIELDS) snapshot[field] = game[field];
+  return Buffer.from(JSON.stringify(snapshot), 'utf8').toString('base64url');
+}
+
+function decodeSaveCode(saveCode) {
+  if (typeof saveCode !== 'string' || !saveCode || saveCode.length > 100000) return null;
+  try {
+    const snapshot = JSON.parse(Buffer.from(saveCode, 'base64url').toString('utf8'));
+    const validPhase = ['playing', 'roundEnd', 'gameover'].includes(snapshot?.phase);
+    const validRound = Number.isInteger(snapshot?.round) && snapshot.round >= 1 && snapshot.round <= FINAL_ROUND;
+    const threeHands = Array.isArray(snapshot?.hands) && snapshot.hands.length === 3 && snapshot.hands.every(Array.isArray);
+    const threeScores = Array.isArray(snapshot?.scores) && snapshot.scores.length === 3 && snapshot.scores.every(Number.isFinite);
+    const threeBots = Array.isArray(snapshot?.bot) && snapshot.bot.length === 3 && snapshot.bot.every(value => typeof value === 'boolean');
+    const validTurn = Number.isInteger(snapshot?.turn) && snapshot.turn >= 0 && snapshot.turn < 3;
+    if (snapshot?.saveVersion !== 1 || !validPhase || !validRound || !threeHands || !threeScores || !threeBots || !validTurn || !Array.isArray(snapshot.stock) || !Array.isArray(snapshot.discard)) return null;
+    return snapshot;
+  } catch (error) {
+    return null;
+  }
+}
+
+function restoreSavedGame(saveCode, loadingSeat) {
+  const snapshot = decodeSaveCode(saveCode);
+  if (!snapshot) return false;
+  clearTimeout(botTimer);
+  const restored = JSON.parse(JSON.stringify(snapshot));
+  for (const field of SAVE_FIELDS) game[field] = restored[field];
+  game.live = [false, false, false];
+  game.lastSeen = [0, 0, 0];
+  game.live[loadingSeat] = true;
+  game.bot[loadingSeat] = false;
+  game.lastSeen[loadingSeat] = Date.now();
+  scheduleBot();
+  return true;
+}
+
 function drawCard(seat, source) {
   if (game.phase !== 'playing' || game.turn !== seat || game.turnStage !== 'draw') return false;
   let card = null;
@@ -454,6 +494,22 @@ async function handleApi(request, response, url) {
       return json(response, session ? 200 : 401, { ok: Boolean(session) });
     }
 
+    if (request.method === 'POST' && url.pathname === '/api/save') {
+      const data = await readBody(request);
+      const session = touchSession(data.token);
+      if (!session) return json(response, 401, { ok: false, message: 'Choose your player again.' });
+      if (!['playing', 'roundEnd', 'gameover'].includes(game.phase)) return json(response, 400, { ok: false, message: 'Start a game before saving.' });
+      return json(response, 200, { ok: true, saveCode: createSaveCode(), savedAt: Date.now(), state: publicState(session.seat) });
+    }
+
+    if (request.method === 'POST' && url.pathname === '/api/load') {
+      const data = await readBody(request);
+      const session = touchSession(data.token);
+      if (!session) return json(response, 401, { ok: false, message: 'Choose your player again.' });
+      if (!restoreSavedGame(data.saveCode, session.seat)) return json(response, 400, { ok: false, message: 'That saved game cannot be loaded.' });
+      return json(response, 200, { ok: true, state: publicState(session.seat) });
+    }
+
     if (request.method === 'POST' && url.pathname === '/api/action') {
       const data = await readBody(request);
       const session = touchSession(data.token);
@@ -525,4 +581,4 @@ if (require.main === module) {
   server.listen(PORT, HOST, () => console.log(`Three-Handed Five Crowns v${VERSION} running at http://${HOST}:${PORT}`));
 }
 
-module.exports = { buildDeck, meldType, analyzeHand, bestDiscard, cardPoints, isWild, rankLabel, server };
+module.exports = { buildDeck, meldType, analyzeHand, bestDiscard, cardPoints, isWild, rankLabel, createSaveCode, decodeSaveCode, server };

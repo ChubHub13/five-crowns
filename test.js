@@ -1,6 +1,6 @@
 const assert = require('assert');
 const fs = require('fs');
-const { buildDeck, meldType, analyzeHand, bestDiscard, cardPoints, isWild } = require('./server');
+const { buildDeck, meldType, analyzeHand, bestDiscard, cardPoints, isWild, decodeSaveCode } = require('./server');
 
 const card = (id, suit, rank, joker = false) => ({ id, suit: joker ? 'joker' : suit, rank: joker ? 0 : rank, joker, deck: 0 });
 
@@ -46,9 +46,12 @@ assert.match(client,/moveDraggedCard\(drag\.targetId/,'A completed pointer drag 
 assert.match(client,/HAND_ORDER_KEY/,'The chosen card order must survive normal state polling.');
 assert.match(client,/button\.card:hover[^}]+transform:none/,'Hovering a hand card must not move it.');
 assert.match(client,/button\.card\.selected:hover[^}]+translateY\(-16px\)/,'A selected card must stay steady when hovered.');
-assert.match(client,/finalTurnAlert/,'The table must display a prominent final-turn warning.');
+assert.doesNotMatch(client,/finalTurnAlert/,'The duplicate red final-turn banner must stay removed.');
 assert.match(client,/round-event-pop 5s/,'The last-turn popup must remain visible for five seconds.');
 assert.match(client,/innerHTML=`LAST TURN/,'The went-out announcement must clearly say LAST TURN.');
 assert.match(client,/choose your player\/i\.test\(error\.message\)/,'An expired saved session must return the visitor to player selection.');
+assert.match(client,/id="saveGameButton"/,'The sidebar must provide a Save Game button.');
+assert.match(client,/id="loadGameButton"/,'The sidebar must provide a Resume Game button.');
+assert.strictEqual(decodeSaveCode('not-a-save'),null,'Invalid save codes must be rejected.');
 
 console.log('Five Crowns rule-engine tests passed.');
