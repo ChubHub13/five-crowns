@@ -561,7 +561,12 @@ const server = http.createServer(async (request, response) => {
       response.writeHead(404);
       return response.end('Not found');
     }
-    const type = path.extname(filePath) === '.html' ? 'text/html; charset=utf-8' : 'application/octet-stream';
+    const types = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8'
+};
+const type = types[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
     response.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-store' });
     response.end(data);
   });
