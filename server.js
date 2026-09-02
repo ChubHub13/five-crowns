@@ -5,1087 +5,583 @@ const crypto = require('crypto');
 
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
-const PUBLIC_DIR = __dirname;
-const VERSION = '1.1.38';
+const VERSION = '2.0.14';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
-const SUITS = ['red', 'yellow', 'green', 'black'];
-const VALUES = [1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
-const WIN_SCORE = 1000;
-const BID_START = 150;
-const KITTY_SIZE = 9;
-const HAND_SIZE = 12;
-const PLAYER_TIMEOUT_MS = 8000;
-const TRICK_REVEAL_MS = 3000;
-const TRUMP_REVEAL_MS = 5000;
-const BOT_DELAY = { bid: 650, play: 550, trick: 850 };
-
+const SUITS = ['stars', 'hearts', 'clubs', 'spades', 'diamonds'];
+const RANKS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+const FINAL_ROUND = 11;
+const PLAYER_TIMEOUT_MS = 12000;
+const BOT_DELAY_MS = Math.max(5, Number(process.env.BOT_DELAY_MS || 550));
 const sessions = new Map();
 let botTimer = null;
-let revealTimer = null;
-
-function makeId(prefix = '') { return prefix + crypto.randomBytes(10).toString('hex'); }
-function cleanName(value) { const v = String(value || '').trim(); return PLAYER_NAMES.includes(v) ? v : null; }
-function now() { return Date.now(); }
-function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 
 const game = {
   version: VERSION,
   phase: 'waiting',
-  handNumber: 0,
-  dealer: 0,
-  currentBidder: 0,
-  highBid: 0,
-  highBidder: null,
-  lastBidderName: '',
-  bidHistory: [],
-  passed: [false, false, false],
-  hands: [[], [], []],
-  kitty: [],
-  kittyAccepted: false,
-  selectedDiscards: [],
-  trump: null,
-  trick: [],
-  lastTrick: null,
-  revealUntil: 0,
-  leader: 0,
+  round: 0,
+  dealer: 2,
   turn: 0,
+  turnStage: 'draw',
   scores: [0, 0, 0],
-  botBidSetCounts: [0, 0, 0],
-  botBidBlockedThroughHand: [0, 0, 0],
-  handPoints: [0, 0, 0],
-  tricksWon: [0, 0, 0],
-  playedCards: [],
-  playHistory: [],
-  humanSeatsThisHand: [false, false, false],
-  lastHandResult: null,
-  started: false,
-  winner: null,
+  hands: [[], [], []],
+  laidDown: [[], [], []],
+  stock: [],
+  discard: [],
+  drawnCardId: null,
+  outPlayer: null,
+  finalTurns: [],
+  lastRound: null,
+  roundHistory: [],
+  winnerSeats: [],
   live: [false, false, false],
   bot: [true, true, true],
   lastSeen: [0, 0, 0],
   chat: [],
-  claimReveal: null,
-  bitterVotes: [false, false, false],
-  misdealSeats: [],
-  prompt: 'Choose a player to begin.',
+  prompt: 'Choose Daryl, Cristi, or Cindy to begin.'
 };
 
-function buildDeck() {
-  let id = 0;
-  const deck = [];
-  for (const suit of SUITS) for (const value of VALUES) deck.push({ id: `c${id++}`, suit, value, rook: false });
-  deck.push({ id: `c${id++}`, suit: 'rook', value: null, rook: true });
-  return deck;
+function randomToken() {
+  return crypto.randomBytes(20).toString('hex');
 }
-function shuffle(deck) {
-  for (let i = deck.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
-  }
-  return deck;
-}
-function cardPoints(card) {
-  if (card.rook) return 20;
-  if (card.value === 1) return 15;
-  if (card.value === 5) return 5;
-  if (card.value === 10 || card.value === 14) return 10;
-  return 0;
-}
-function cardRank(card) { return card.rook ? 10.5 : card.value === 1 ? 15 : card.value; }
-function effectiveSuit(card) {
-  if (!card.rook) return card.suit;
-  return game.trump === 'none' ? 'red' : game.trump;
-}
-function cardName(card) { return card.rook ? 'the Rook' : `${card.suit} ${card.value}`; }
-function playerName(seat) { return PLAYER_NAMES[seat]; }
 
-function sortHand(hand) {
-  const suitOrder = { red: 0, yellow: 1, green: 2, black: 3, rook: 4 };
+function shuffle(cards) {
+  const copy = cards.slice();
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(i + 1);
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+function rankLabel(rank) {
+  return rank === 11 ? 'J' : rank === 12 ? 'Q' : rank === 13 ? 'K' : String(rank);
+}
+
+function buildDeck() {
+  const cards = [];
+  for (let deck = 0; deck < 2; deck++) {
+    for (const suit of SUITS) {
+      for (const rank of RANKS) cards.push({ id: `d${deck}-${suit}-${rank}`, deck, suit, rank, joker: false });
+    }
+    for (let joker = 0; joker < 3; joker++) cards.push({ id: `d${deck}-joker-${joker}`, deck, suit: 'joker', rank: 0, joker: true });
+  }
+  return cards;
+}
+
+function wildRank(round = game.round) {
+  return round + 2;
+}
+
+function isWild(card, currentWild = wildRank()) {
+  return Boolean(card?.joker || card?.rank === currentWild);
+}
+
+function cardPoints(card, currentWild = wildRank()) {
+  if (card.joker) return 50;
+  if (card.rank === currentWild) return 20;
+  return card.rank;
+}
+
+function sortHand(hand, currentWild = wildRank()) {
+  const suitOrder = Object.fromEntries(SUITS.map((suit, index) => [suit, index]));
   hand.sort((a, b) => {
-    const sa = a.rook && game.trump ? effectiveSuit(a) : (a.rook ? 'rook' : a.suit);
-    const sb = b.rook && game.trump ? effectiveSuit(b) : (b.rook ? 'rook' : b.suit);
-    const suitDiff = (suitOrder[sa] ?? 9) - (suitOrder[sb] ?? 9);
-    if (suitDiff) return suitDiff;
-    return cardRank(b) - cardRank(a);
+    const wildDifference = Number(isWild(b, currentWild)) - Number(isWild(a, currentWild));
+    if (wildDifference) return wildDifference;
+    const suitDifference = (suitOrder[a.suit] ?? 9) - (suitOrder[b.suit] ?? 9);
+    return suitDifference || a.rank - b.rank || a.deck - b.deck;
   });
 }
 
-function resetGame() {
-  clearTimeout(botTimer); clearTimeout(revealTimer);
-  for (let i = 0; i < 3; i++) { game.live[i] = false; game.bot[i] = true; game.lastSeen[i] = 0; }
-  game.phase = 'waiting'; game.handNumber = 0; game.dealer = 0; game.currentBidder = 0;
-  game.highBid = 0; game.highBidder = null; game.lastBidderName = ''; game.bidHistory = [];
-  game.passed = [false, false, false]; game.hands = [[], [], []]; game.kitty = []; game.kittyAccepted = false;
-  game.selectedDiscards = []; game.trump = null; game.trick = []; game.lastTrick = null; game.revealUntil = 0;
-  game.leader = 0; game.turn = 0; game.scores = [0, 0, 0]; game.botBidSetCounts = [0, 0, 0]; game.botBidBlockedThroughHand = [0, 0, 0]; game.handPoints = [0, 0, 0]; game.tricksWon = [0, 0, 0]; game.playedCards = []; game.playHistory = [];
-  game.started = false; game.winner = null; game.chat = []; game.claimReveal = null; game.bitterVotes = [false, false, false]; game.humanSeatsThisHand = [false, false, false]; game.prompt = 'Choose a player to begin.';
+function meldType(cards, currentWild) {
+  if (!Array.isArray(cards) || cards.length < 3) return null;
+  const natural = cards.filter(card => !isWild(card, currentWild));
+  if (!natural.length) return 'wild';
+  if (natural.every(card => card.rank === natural[0].rank)) return 'book';
+  if (!natural.every(card => card.suit === natural[0].suit)) return null;
+  const ranks = natural.map(card => card.rank);
+  if (new Set(ranks).size !== ranks.length) return null;
+  const minimum = Math.min(...ranks);
+  const maximum = Math.max(...ranks);
+  const length = cards.length;
+  const earliestStart = Math.max(3, maximum - length + 1);
+  const latestStart = Math.min(minimum, 13 - length + 1);
+  return earliestStart <= latestStart ? 'run' : null;
 }
 
-function ensureBots() {
-  for (let i = 0; i < 3; i++) if (!game.live[i]) game.bot[i] = true;
-}
-
-function createDeal() {
-  let deck = shuffle(buildDeck());
-  game.hands = [[], [], []];
-  for (let round = 0; round < HAND_SIZE; round++) {
-    for (let offset = 1; offset <= 3; offset++) game.hands[(game.dealer + offset) % 3].push(deck.pop());
+function analyzeHand(hand, currentWild = wildRank()) {
+  const cards = hand.map(card => ({ ...card }));
+  const count = cards.length;
+  if (!count) return { penalty: 0, melds: [], deadwood: [] };
+  const fullMask = (1 << count) - 1;
+  const validMelds = [];
+  for (let mask = 1; mask <= fullMask; mask++) {
+    let size = 0;
+    for (let bits = mask; bits; bits &= bits - 1) size++;
+    if (size < 3) continue;
+    const subset = cards.filter((_, index) => mask & (1 << index));
+    const type = meldType(subset, currentWild);
+    if (type) validMelds.push({ mask, type });
   }
-  game.kitty = deck.splice(0);
-  game.hands.forEach(sortHand);
-}
-
-function resetHand() {
-  clearTimeout(botTimer); clearTimeout(revealTimer);
-  game.handNumber += 1;
-  game.dealer = game.handNumber === 1 ? game.dealer : (game.dealer + 1) % 3;
-  game.currentBidder = (game.dealer + 1) % 3;
-  game.phase = 'bidding';
-  game.highBid = 0; game.highBidder = null; game.lastBidderName = ''; game.bidHistory = []; game.passed = [false, false, false];
-  game.trump = null; game.kittyAccepted = false; game.selectedDiscards = []; game.bitterVotes = [false, false, false]; game.trick = []; game.revealUntil = 0;
-  game.handPoints = [0, 0, 0]; game.tricksWon = [0, 0, 0]; game.playedCards = []; game.playHistory = []; game.lastHandResult = null; game.claimReveal = null; game.winner = null;
-  game.humanSeatsThisHand = game.bot.map(isBot => !isBot);
-  createDeal();
-  game.misdealSeats = game.hands.map((hand, seat) => hand.reduce((total, card) => total + cardPoints(card), 0) === 0 ? seat : -1).filter(seat => seat >= 0);
-  game.prompt = `${playerName(game.currentBidder)} bids first.`;
-  scheduleBotBidIfNeeded();
-}
-
-function minLegalBid() {
-  if (!game.highBid) return BID_START;
-  if (game.highBid < 200) return game.highBid + 5;
-  if (game.highBid < 400) return 400;
-  return 401;
-}
-
-function analyzeBotBidHand(hand) {
-  const hasRook = hand.some(c => c.rook);
-  const aces = hand.filter(c => !c.rook && c.value === 1).length;
-  const suitCounts = Object.fromEntries(SUITS.map(s => [s, hand.filter(c => !c.rook && c.suit === s).length]));
-  const suitScore = suit => hand.reduce((score, card) => {
-    if (card.rook) return score + 9;
-    if (card.suit !== suit) return score;
-    if (card.value === 1) return score + 20;
-    if (card.value === 14) return score + 12;
-    if (card.value === 13) return score + 8;
-    if (card.value === 12) return score + 5;
-    return score + 2 + cardPoints(card) * 0.25;
-  }, suitCounts[suit] * 11);
-  const bestTrump = SUITS.reduce((best, s) => suitScore(s) > suitScore(best) ? s : best, SUITS[0]);
-  const potentialTrumpCount = suitCounts[bestTrump] + (hasRook ? 1 : 0);
-  const covered = new Set();
-  const standard = [1, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5];
-  const trumpOrder = [1, 14, 13, 12, 11, 'rook', 10, 9, 8, 7, 6, 5];
-  function markRun(suit, order) {
-    for (const rank of order) {
-      const c = rank === 'rook' ? hand.find(x => x.rook) : hand.find(x => !x.rook && x.suit === suit && x.value === rank);
-      if (!c) break;
-      covered.add(c.id);
+  const byCard = Array.from({ length: count }, () => []);
+  for (const meld of validMelds) {
+    for (let index = 0; index < count; index++) if (meld.mask & (1 << index)) byCard[index].push(meld);
+  }
+  const memo = new Map();
+  function solve(mask) {
+    if (!mask) return { penalty: 0, melds: [] };
+    if (memo.has(mask)) return memo.get(mask);
+    let first = 0;
+    while (!(mask & (1 << first))) first++;
+    const withoutFirst = mask & ~(1 << first);
+    const deadwoodResult = solve(withoutFirst);
+    let best = { penalty: cardPoints(cards[first], currentWild) + deadwoodResult.penalty, melds: deadwoodResult.melds };
+    for (const meld of byCard[first]) {
+      if ((meld.mask & mask) !== meld.mask) continue;
+      const result = solve(mask ^ meld.mask);
+      const candidate = { penalty: result.penalty, melds: [{ ...meld }, ...result.melds] };
+      if (candidate.penalty < best.penalty || (candidate.penalty === best.penalty && candidate.melds.length < best.melds.length)) best = candidate;
     }
+    memo.set(mask, best);
+    return best;
   }
-  for (const s of SUITS) markRun(s, s === bestTrump ? trumpOrder : standard);
-  return { hasRook, aces, bestTrump, potentialTrumpCount, fullCoverage: covered.size === hand.length };
+  const solved = solve(fullMask);
+  const usedMask = solved.melds.reduce((mask, meld) => mask | meld.mask, 0);
+  return {
+    penalty: solved.penalty,
+    melds: solved.melds.map(meld => ({ type: meld.type, cards: cards.filter((_, index) => meld.mask & (1 << index)) })),
+    deadwood: cards.filter((_, index) => !(usedMask & (1 << index)))
+  };
 }
 
-function estimateMaxBid(hand) {
-  const strength = analyzeBotBidHand(hand);
-  const suitCards = Object.fromEntries(SUITS.map(s => [s, hand.filter(c => !c.rook && c.suit === s)]));
-  const scoreSuit = s => (suitCards[s].length + (strength.hasRook ? 1 : 0)) * 7 + suitCards[s].reduce((n, c) => n + (c.value === 1 ? 8 : c.value === 14 ? 6 : c.value >= 13 ? 3 : c.value >= 11 ? 1 : 0), 0);
-  const ranked = [...SUITS].sort((a, b) => scoreSuit(b) - scoreSuit(a));
-  const trumpSuit = ranked[0];
-  const trumpCards = suitCards[trumpSuit];
-  const trumpCount = trumpCards.length + (strength.hasRook ? 1 : 0);
-  const trumpHasOne = trumpCards.some(c => c.value === 1);
-  const trumpHasFourteen = trumpCards.some(c => c.value === 14);
-  const totalOnes = hand.filter(c => !c.rook && c.value === 1).length;
-  const topCards = hand.filter(c => !c.rook && (c.value === 1 || c.value === 14)).length;
-  const secondaryOnes = hand.filter(c => !c.rook && c.suit !== trumpSuit && c.value === 1).length;
-  const secondaryFourteens = hand.filter(c => !c.rook && c.suit !== trumpSuit && c.value === 14).length;
-  const activeColors = SUITS.filter(s => suitCards[s].length).length;
-  const voids = 4 - activeColors;
-  let ref = 0;
-  if (trumpCount >= 4) ref += 5;
-  if (trumpCount >= 5) ref += 5;
-  if (trumpCount >= 6) ref += 5;
-  if (trumpCount >= 7) ref += 5;
-  if (trumpHasOne) ref += 6; else if (trumpCount >= 6) ref -= 5; else ref -= 3;
-  if (trumpHasFourteen) ref += 4;
-  if (trumpCards.some(c => c.value === 13)) ref += 2;
-  if (strength.hasRook) ref += 6;
-  ref += secondaryOnes * 5 + secondaryFourteens * 2;
-  for (const s of SUITS) {
-    if (s === trumpSuit) continue;
-    const vals = suitCards[s].map(c => c.value);
-    if (vals.includes(1) && vals.includes(14)) ref += 5;
-  }
-  ref += voids * 3;
-  if (activeColors <= 2) ref += 3;
-  if (activeColors === 4) ref -= 3;
-  const pts = hand.reduce((n, c) => n + cardPoints(c), 0);
-  if (pts >= 45) ref += 2;
-  if (pts >= 60) ref += 2;
-  if ((suitCards[ranked[1]] || []).length >= 4) ref += 3;
-  let estimate = Math.round((145 + ref * 0.65) / 5) * 5;
-  estimate = Math.max(150, estimate);
-  if (topCards >= 3 && estimate < 160) estimate = 160;
-  const exceptional = trumpCount >= 8 && (trumpHasOne || strength.hasRook) && totalOnes >= 2;
-  estimate = Math.min(estimate, exceptional ? 175 : 170);
-  if (strength.fullCoverage) estimate = 200;
-  if (estimate < 200 && Math.random() < 0.35) estimate += Math.random() < 0.5 ? -5 : 5;
-  return clamp(Math.round(estimate / 5) * 5, 145, strength.fullCoverage ? 200 : 175);
-}
-
-function chooseBestTrump(hand) {
-  let best = SUITS[0], bestScore = -Infinity;
-  for (const suit of SUITS) {
-    let score = 0;
-    for (const c of hand) {
-      if (c.rook) score += 10;
-      else if (c.suit === suit) {
-        score += 3;
-        if (c.value === 1) score += 18;
-        else if (c.value === 14) score += 10;
-        else if (c.value === 13) score += 6;
-        else if (c.value >= 11) score += 3;
-        score += cardPoints(c) * 0.25;
-      }
+function bestDiscard(hand, currentWild = wildRank()) {
+  let best = null;
+  for (let index = 0; index < hand.length; index++) {
+    const card = hand[index];
+    const remaining = hand.filter((_, cardIndex) => cardIndex !== index);
+    const analysis = analyzeHand(remaining, currentWild);
+    const candidate = { card, analysis };
+    if (!best
+      || analysis.penalty < best.analysis.penalty
+      || (analysis.penalty === best.analysis.penalty && Number(isWild(best.card, currentWild)) > Number(isWild(card, currentWild)))
+      || (analysis.penalty === best.analysis.penalty && isWild(best.card, currentWild) === isWild(card, currentWild) && cardPoints(card, currentWild) > cardPoints(best.card, currentWild))) {
+      best = candidate;
     }
-    if (score > bestScore) { bestScore = score; best = suit; }
   }
   return best;
 }
 
-function discardDesirability(card, trump) {
-  if (card.rook) return 100;
-  let keep = cardRank(card) * 1.2 + cardPoints(card) * 2.4;
-  if (card.suit === trump) keep += 20;
-  if (card.value === 1) keep += 28;
-  if (card.value === 14) keep += 12;
-  return keep;
-}
-function chooseBotDiscards(hand, trump) {
-  const keepCount = Math.max(0, hand.length - KITTY_SIZE);
-  const winnerIds = botDiscardWinnerIds(hand, trump);
-  const activeSuits = SUITS.filter(suit => hand.some(card => botDiscardSuit(card, trump) === suit));
-  const sideSuits = activeSuits.filter(suit => suit !== trump);
-  const corePlans = sideSuits.length
-    ? sideSuits.map(suit => new Set([trump, suit]))
-    : [new Set([trump])];
-  let bestPlan = null;
-
-  for (const coreSuits of corePlans) {
-    const ranked = [...hand].sort((a, b) => {
-      const difference = botDiscardKeepScore(b, trump, coreSuits, winnerIds)
-        - botDiscardKeepScore(a, trump, coreSuits, winnerIds);
-      return difference || cardRank(b) - cardRank(a) || String(a.id).localeCompare(String(b.id));
-    });
-    const keptIds = new Set(ranked.slice(0, keepCount).map(card => card.id));
-    const discards = hand.filter(card => !keptIds.has(card.id));
-    const kept = hand.filter(card => keptIds.has(card.id));
-    const offCoreLosers = kept.filter(card => !coreSuits.has(botDiscardSuit(card, trump)) && !winnerIds.has(card.id)).length;
-    const structuralSuits = new Set(kept.filter(card => !winnerIds.has(card.id)).map(card => botDiscardSuit(card, trump)));
-    const score = kept.reduce((sum, card) => sum + discardDesirability(card, trump), 0)
-      + kept.filter(card => winnerIds.has(card.id)).length * 180
-      - offCoreLosers * 1000
-      - Math.max(0, structuralSuits.size - 2) * 1200;
-    if (!bestPlan || score > bestPlan.score) bestPlan = { score, discards };
-  }
-
-  const discards = bestPlan ? bestPlan.discards : [...hand]
-    .sort((a, b) => discardDesirability(a, trump) - discardDesirability(b, trump))
-    .slice(0, KITTY_SIZE);
-  return avoidBadSingletonKeeps(hand, discards, trump);
-}
-
-function avoidBadSingletonKeeps(hand, discards, trump) {
-  const result = [...discards];
-  const discardIds = new Set(result.map(card => card.id));
-  const kept = () => hand.filter(card => !discardIds.has(card.id));
-  for (const suit of SUITS) {
-    if (suit === trump) continue;
-    const suitKept = kept().filter(card => botDiscardSuit(card, trump) === suit);
-    if (suitKept.length !== 1 || suitKept[0].rook || ![10, 14].includes(suitKept[0].value)) continue;
-    const badKeep = suitKept[0];
-    let replacement = result.find(card => botDiscardSuit(card, trump) === suit && !card.rook && ![10, 14].includes(card.value));
-    if (!replacement) {
-      const populated = new Set(kept().map(card => botDiscardSuit(card, trump)));
-      replacement = result.find(card => populated.has(botDiscardSuit(card, trump)) && card.id !== badKeep.id);
-    }
-    if (!replacement) continue;
-    const index = result.findIndex(card => card.id === replacement.id);
-    result[index] = badKeep;
-    discardIds.delete(replacement.id);
-    discardIds.add(badKeep.id);
-  }
-  return result;
-}
-
-function botDiscardSuit(card, trump) {
-  return card.rook ? (trump === 'none' ? 'red' : trump) : card.suit;
-}
-
-function botDiscardWinnerIds(hand, trump) {
-  const winners = new Set();
-  const standard = [1, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5];
-  for (const suit of SUITS) {
-    const order = suit === trump ? [1, 14, 13, 12, 11, 'rook', 10, 9, 8, 7, 6, 5] : standard;
-    for (const rank of order) {
-      const card = rank === 'rook'
-        ? hand.find(item => item.rook && botDiscardSuit(item, trump) === suit)
-        : hand.find(item => !item.rook && item.suit === suit && item.value === rank);
-      if (!card) break;
-      winners.add(card.id);
-    }
-  }
-  return winners;
-}
-
-function botDiscardKeepScore(card, trump, coreSuits, winnerIds) {
-  const suit = botDiscardSuit(card, trump);
-  let score = discardDesirability(card, trump);
-  if (coreSuits.has(suit)) score += 90;
-  if (trump !== 'none' && suit === trump) score += 45;
-  if (winnerIds.has(card.id)) score += 260;
-  if (card.rook) score += 80;
-  if (trump !== 'none' && suit !== trump && !winnerIds.has(card.id) && !card.rook && (card.value === 10 || card.value === 5)) score -= 65;
-  return score;
-}
-
-function legalCards(seat) {
-  const hand = game.hands[seat] || [];
-  if (!game.trick.length) return hand.slice();
-  const lead = effectiveSuit(game.trick[0].card);
-  const following = hand.filter(c => effectiveSuit(c) === lead);
-  return following.length ? following : hand.slice();
-}
-function beats(challenger, incumbent, leadSuit) {
-  const cs = effectiveSuit(challenger), is = effectiveSuit(incumbent);
-  const ct = game.trump && game.trump !== 'none' && cs === game.trump;
-  const it = game.trump && game.trump !== 'none' && is === game.trump;
-  if (ct !== it) return ct;
-  if (cs === is) return cardRank(challenger) > cardRank(incumbent);
-  if (cs === leadSuit && is !== leadSuit) return true;
-  return false;
-}
-function trickWinner(trick) {
-  const lead = effectiveSuit(trick[0].card);
-  let best = trick[0];
-  for (let i = 1; i < trick.length; i++) if (beats(trick[i].card, best.card, lead)) best = trick[i];
-  return best.seat;
-}
-function isGuarded14(card) { return !card.rook && card.value === 14 && !cardAlreadyPlayed(card.suit, 1); }
-function cardAlreadyPlayed(suit, value) {
-  return game.playedCards.some(c => !c.rook && c.suit === suit && c.value === value);
-}
-function teamOf(seat) { return seat === game.highBidder ? 0 : 1; }
-function opponentsStillHoldTrump(seat) {
-  if (!game.trump || game.trump === 'none') return false;
-  return [0, 1, 2].some(i => i !== seat && teamOf(i) !== teamOf(seat) && game.hands[i].some(c => effectiveSuit(c) === game.trump));
-}
-function cardWinLooksSecure(seat, card, leadSuit) {
-  const playedSeats = new Set(game.trick.map(play => play.seat));
-  for (let next = (seat + 1) % 3; next !== game.leader; next = (next + 1) % 3) {
-    if (next === seat || playedSeats.has(next) || teamOf(next) === teamOf(seat)) continue;
-    const hand = game.hands[next] || [];
-    const followers = hand.filter(candidate => effectiveSuit(candidate) === leadSuit);
-    const choices = followers.length ? followers : hand;
-    if (choices.some(candidate => beats(candidate, card, leadSuit))) return false;
-  }
+function ensureStock() {
+  if (game.stock.length) return true;
+  if (game.discard.length <= 1) return false;
+  const top = game.discard.pop();
+  game.stock = shuffle(game.discard);
+  game.discard = [top];
   return true;
 }
-function chooseFourteenCashout(seat, legal) {
-  const lead = game.trick[0];
-  if (!lead || lead.seat !== game.highBidder || seat === game.highBidder) return null;
-  const leadSuit = effectiveSuit(lead.card);
-  if (!leadSuit || cardRank(lead.card) >= 14 || cardAlreadyPlayed(leadSuit, 1)) return null;
-  const suitCards = (game.hands[seat] || []).filter(card => effectiveSuit(card) === leadSuit);
-  if (suitCards.length < 2) return null;
-  return legal.find(card => !card.rook && card.value === 14 && effectiveSuit(card) === leadSuit) || null;
-}
-function bidderLedBelowHigh() {
-  const lead = game.trick[0];
-  return !!lead && lead.seat === game.highBidder && cardRank(lead.card) < 15;
-}
-function defendersCanTakeCurrentTrick(seat, winningCard, leadSuit) {
-  if (teamOf(trickWinner(game.trick)) === 1) return true;
-  if (legalCards(seat).some(card => beats(card, winningCard, leadSuit))) return true;
-  const alreadyPlayed = new Set(game.trick.map(play => play.seat));
-  return [0, 1, 2].some(other => {
-    if (other === seat || alreadyPlayed.has(other) || teamOf(other) !== 1) return false;
-    const hand = game.hands[other] || [];
-    const followers = hand.filter(card => effectiveSuit(card) === leadSuit);
-    const choices = followers.length ? followers : hand;
-    return choices.some(card => beats(card, winningCard, leadSuit));
-  });
-}
-function wouldStrand14(seat, card) {
-  if (card.rook || card.value === 14 || cardAlreadyPlayed(card.suit, 1)) return false;
-  const remain = game.hands[seat].filter(c => c.id !== card.id && !c.rook && c.suit === card.suit);
-  return remain.length === 1 && remain[0].value === 14;
-}
-function isPointThrow(card) { return !!card && (card.rook || card.value === 10 || card.value === 5); }
-function chooseSecondSeatBidderPointFeed(seat, legal) {
-  if (game.trick.length !== 1 || game.trick[0].seat !== game.highBidder || game.trick[0].card.rook) return null;
-  const leadCard = game.trick[0].card;
-  const leadSuit = effectiveSuit(leadCard);
-  const remainingInColor = game.hands.flat().filter(card => effectiveSuit(card) === leadSuit);
-  const higherCards = remainingInColor.filter(card => cardRank(card) > cardRank(leadCard));
-  if (!higherCards.length) return null;
-  const highestRank = Math.max(...remainingInColor.map(cardRank));
-  if ((game.hands[seat] || []).some(card => effectiveSuit(card) === leadSuit && cardRank(card) === highestRank)) return null;
-  const points = legal.filter(isPointThrow);
-  return points.sort((a, b) => cardPoints(b) - cardPoints(a) || cardRank(a) - cardRank(b))[0] || null;
-}
-function isEstablishedWinner(seat, card) {
-  const leadSuit = effectiveSuit(card);
-  return [0, 1, 2].filter(other => other !== seat && teamOf(other) !== teamOf(seat)).every(other => {
-    const hand = game.hands[other] || [];
-    const followers = hand.filter(candidate => effectiveSuit(candidate) === leadSuit);
-    const responses = followers.length ? followers : hand;
-    return !responses.some(candidate => beats(candidate, card, leadSuit));
-  });
-}
-function botHasSideWinner(seat) {
-  return (game.hands[seat] || []).some(card => effectiveSuit(card) !== game.trump && isEstablishedWinner(seat, card));
-}
-function bidderSecondarySuit() {
-  const leads = game.playHistory.filter(play => play.seat === game.highBidder && play.led && effectiveSuit(play.card) !== game.trump);
-  return leads.length ? effectiveSuit(leads[0].card) : null;
-}
-function protectSluffCards(seat, cards) {
-  let pool = [...cards];
-  const nonPoints = pool.filter(card => cardPoints(card) === 0);
-  if (nonPoints.length) pool = nonPoints;
-  const nonWinners = pool.filter(card => !(!card.rook && card.value === 1) && !isEstablishedWinner(seat, card));
-  if (nonWinners.length) pool = nonWinners;
-  const secondSuit = bidderSecondarySuit();
-  if (seat !== game.highBidder && secondSuit && game.hands[seat].length > 3) {
-    const alternatives = pool.filter(card => effectiveSuit(card) !== secondSuit);
-    if (alternatives.length) pool = alternatives;
-  }
-  return pool;
-}
-function lowestSafe(cards, seat) {
-  const pool = cards.length ? cards.slice() : [];
-  const unstrand = pool.filter(c => !wouldStrand14(seat, c));
-  const source = unstrand.length ? unstrand : pool;
-  return source.sort((a, b) => {
-    const keepA = a.rook ? 22 : a.value === 1 ? 100 : a.value === 14 ? 88 : a.value === 13 ? 34 : a.value === 12 ? 18 : 0;
-    const keepB = b.rook ? 22 : b.value === 1 ? 100 : b.value === 14 ? 88 : b.value === 13 ? 34 : b.value === 12 ? 18 : 0;
-    return keepA - keepB || cardPoints(a) - cardPoints(b) || cardRank(a) - cardRank(b);
-  })[0];
-}
-function chooseBotCard(seat) {
-  const rawLegal = legalCards(seat);
-  const legal = legalCardsKeepingFinalTrump(seat, rawLegal);
-  if (!legal.length) return null;
-  const bidder = seat === game.highBidder;
-  const lastToPlay = game.trick.length === 2;
-  const currentWinner = game.trick.length ? trickWinner(game.trick) : null;
-  const leadSuit = game.trick.length ? effectiveSuit(game.trick[0].card) : null;
 
-  if (!game.trick.length) {
-    let leads = legal.filter(c => !isGuarded14(c) && (!c.rook || (game.trump && game.trump !== 'none' && cardRank(c) >= 16)));
-    const nonPointers = leads.filter(card => cardPoints(card) === 0);
-    if (nonPointers.length) leads = leads.filter(card => !(!card.rook && card.value === 10));
-    if (bidder && game.trump && game.trump !== 'none' && opponentsStillHoldTrump(seat)) {
-      const trumps = leads.filter(c => effectiveSuit(c) === game.trump && (!c.rook || cardRank(c) >= 16));
-      if (trumps.length) return trumps.sort((a, b) => cardRank(b) - cardRank(a))[0];
-    }
-    if (!bidder) {
-      leads = leads.filter(c => !game.trump || effectiveSuit(c) !== game.trump);
-      leads = leads.filter(c => {
-        const suit = effectiveSuit(c);
-        if (!suit || c.rook || c.value !== 1) return true;
-        return ![0,1,2].some(op => op !== seat && !game.hands[op].some(x => effectiveSuit(x) === suit));
-      });
-      const bidderSideSuit = bidderSideSuitToAvoidAfterDefenderWin(seat);
-      if (bidderSideSuit) {
-        const differentNonTrump = legal.filter(c => effectiveSuit(c) !== bidderSideSuit && effectiveSuit(c) !== game.trump);
-        const preferred = leads.filter(c => effectiveSuit(c) !== bidderSideSuit && effectiveSuit(c) !== game.trump);
-        if (differentNonTrump.length) leads = preferred.length ? preferred : differentNonTrump;
-      }
-    }
-    const established = leads.filter(card => isEstablishedWinner(seat, card));
-    if (established.length) return established.sort((a, b) => cardRank(b) - cardRank(a))[0];
-    const safe = leads.filter(c => cardPoints(c) === 0);
-    if (safe.length) return lowestSafe(safe, seat);
-    return lowestSafe(leads.length ? leads : legal, seat);
-  }
-
-  const winningPlay = game.trick.find(x => x.seat === currentWinner);
-  const winningCards = legal.filter(c => beats(c, winningPlay.card, leadSuit));
-
-  const fourteenCashout = chooseFourteenCashout(seat, legal);
-  if (fourteenCashout) return fourteenCashout;
-
-  const secondSeatPoints = chooseSecondSeatBidderPointFeed(seat, legal);
-  if (secondSeatPoints) return secondSeatPoints;
-
-  // When void, use trump to regain the lead before cashing established winners.
-  if (teamOf(currentWinner) !== teamOf(seat) && botHasSideWinner(seat)) {
-    const trumps = legal.filter(card => effectiveSuit(card) === game.trump && beats(card, winningPlay.card, leadSuit));
-    if (trumps.length) return trumps.sort((a, b) => cardRank(a) - cardRank(b))[0];
-  }
-
-  // The two defenders are a side.  Do not steal a teammate's trick just to
-  // win it again; feed 5s, 10s, and the Rook only when that trick is secure.
-  if (teamOf(currentWinner) === teamOf(seat)) {
-    const under = legal.filter(c => !beats(c, winningPlay.card, leadSuit));
-    const pool = under.length ? under : legal;
-    if (cardWinLooksSecure(seat, winningPlay.card, leadSuit)) {
-      const points = legal.filter(card => isPointThrow(card)
-        && (!beats(card, winningPlay.card, leadSuit) || cardWinLooksSecure(seat, card, leadSuit)));
-      if (points.length) return points.sort((a, b) => cardPoints(b) - cardPoints(a) || cardRank(a) - cardRank(b))[0];
-    }
-    const safe = pool.filter(c => !isGuarded14(c) && !wouldStrand14(seat, c));
-    const protectedPool = protectSluffCards(seat, safe.length ? safe : pool);
-    return lowestSafe(protectedPool, seat);
-  }
-
-  if (lastToPlay && currentWinner !== seat && !bidder && teamOf(currentWinner) === 1) {
-    const points = legal.filter(c => isPointThrow(c) && !beats(c, winningPlay.card, leadSuit));
-    if (points.length) return points.sort((a, b) => cardPoints(b) - cardPoints(a) || cardRank(a) - cardRank(b))[0];
-  }
-
-  if (bidder && game.trump && game.trump !== 'none' && opponentsStillHoldTrump(seat)) {
-    const trumps = legal.filter(c => effectiveSuit(c) === game.trump);
-    if (trumps.length === 1 && legal.length > 1 && game.hands[seat].length <= 2) {
-      const nonTrumps = legal.filter(c => effectiveSuit(c) !== game.trump);
-      if (nonTrumps.length) return lowestSafe(nonTrumps, seat);
-    }
-  }
-
-  if (winningCards.length) {
-    const one = winningCards.find(c => !c.rook && c.value === 1);
-    if (one) return one;
-    return winningCards.sort((a, b) => cardRank(a) - cardRank(b))[0];
-  }
-
-  const safeSluffs = legal.filter(c => !isGuarded14(c) && !wouldStrand14(seat, c));
-  return lowestSafe(protectSluffCards(seat, safeSluffs.length ? safeSluffs : legal), seat);
-}
-
-function bidderSideSuitToAvoidAfterDefenderWin(seat) {
-  if (seat === game.highBidder || !game.lastTrick || game.lastTrick.winner !== seat) return null;
-  const bidderLead = game.lastTrick.plays?.[0];
-  if (!bidderLead || bidderLead.seat !== game.highBidder) return null;
-  const suit = effectiveSuit(bidderLead.card);
-  if (!suit || suit === game.trump) return null;
-  return suit;
-}
-
-function legalCardsKeepingFinalTrump(seat, legal) {
-  if (!game.trump || game.trump === 'none') return legal;
-  const trumps = (game.hands[seat] || []).filter(card => effectiveSuit(card) === game.trump);
-  if (trumps.length !== 1) return legal;
-  const finalTrump = trumps[0];
-  if (!legal.some(card => card.id === finalTrump.id)) return legal;
-  const nonTrump = legal.filter(card => effectiveSuit(card) !== game.trump);
-  if (!nonTrump.length) return legal;
-  return mustSpendFinalTrumpToAvoidSet(seat, finalTrump, nonTrump) ? legal : nonTrump;
-}
-
-function mustSpendFinalTrumpToAvoidSet(seat, finalTrump, nonTrump) {
-  if (seat !== game.highBidder || !game.trick.length || !game.highBid) return false;
-  const currentWinner = trickWinner(game.trick);
-  if (currentWinner === game.highBidder) return false;
-  const leadSuit = effectiveSuit(game.trick[0].card);
-  const winningPlay = game.trick.find(play => play.seat === currentWinner);
-  if (!winningPlay || !beats(finalTrump, winningPlay.card, leadSuit)) return false;
-  if (nonTrump.some(card => beats(card, winningPlay.card, leadSuit))) return false;
-  if (game.highBid === 400) return true;
-  const defenderPoints = [0, 1, 2]
-    .filter(player => player !== game.highBidder)
-    .reduce((sum, player) => sum + (game.handPoints[player] || 0), 0);
-  const tablePoints = game.trick.reduce((sum, play) => sum + cardPoints(play.card), 0);
-  const cheapestDiscard = Math.min(...nonTrump.map(card => cardPoints(card)));
-  return defenderPoints + tablePoints + cheapestDiscard > 200 - game.highBid;
-}
-
-function beginGame() {
-  if (game.started) return;
-  ensureBots();
-  game.started = true;
-  game.scores = [0,0,0];
-  game.botBidSetCounts = [0,0,0];
-  game.botBidBlockedThroughHand = [0,0,0];
-  game.handNumber = 0;
-  game.dealer = Math.floor(Math.random() * 3);
-  resetHand();
-}
-function botShouldVoteBitter(seat) {
-  const hand = game.hands[seat] || [];
-  const pointTotal = hand.reduce((total, card) => total + cardPoints(card), 0);
-  if (!pointTotal) return true;
-  const suits = SUITS.map(suit => hand.filter(card => !card.rook && card.suit === suit));
-  const maxSuit = Math.max(...suits.map(cards => cards.length));
-  const hasFourWithOne = suits.some(cards => cards.length >= 4 && cards.some(card => card.value === 1));
-  const premium = hand.filter(card => card.rook || card.value === 1 || card.value === 14 || card.value === 13 || card.value === 12 || cardPoints(card) > 0).length;
-  return maxSuit <= 3 || (!hasFourWithOne && premium <= 4);
-}
-function voteBitterBunch(seat) {
-  if (game.phase !== 'bidding' || game.highBid || game.currentBidder !== seat || game.bitterVotes[seat]) return false;
-  game.bitterVotes[seat] = true;
-  if (game.bitterVotes.every(Boolean)) {
-    game.prompt = 'Bitter Bunch agreed — redealing.';
-    resetHand();
-  } else {
-    game.currentBidder = (seat + 1) % 3;
-    game.prompt = `${playerName(game.currentBidder)} must bid or choose Bitter Bunch.`;
-    scheduleBotBidIfNeeded();
-  }
-  return true;
-}
-function redealMisdeal(seat) {
-  if (game.phase !== 'bidding' || game.highBid || !game.misdealSeats.includes(seat)) return false;
-  game.prompt = `${playerName(seat)} has a misdeal — redealing.`;
-  resetHand();
-  return true;
-}
-function recordBid(seat, bid) {
-  game.highBid = bid;
-  game.bitterVotes = [false, false, false];
-  game.highBidder = seat;
-  game.lastBidderName = playerName(seat);
-  game.bidHistory.push({ seat, bid, passed: false });
-}
-function passBid(seat) {
-  game.passed[seat] = true;
-  game.bidHistory.push({ seat, bid: 'Pass', passed: true });
-}
-function advanceBidding() {
-  const active = [0,1,2].filter(i => !game.passed[i]);
-  if (game.highBidder !== null && active.length === 1 && active[0] === game.highBidder) return finishBidding();
-  if (!active.length) {
-    game.highBid = 0; game.highBidder = null; game.passed = [false,false,false]; game.bidHistory = [];
-    game.currentBidder = (game.dealer + 1) % 3;
-  } else {
-    let next = null;
-    for (let step = 1; step <= 3; step++) {
-      const candidate = (game.currentBidder + step) % 3;
-      if (!game.passed[candidate]) { next = candidate; break; }
-    }
-    game.currentBidder = next;
-  }
-  game.prompt = `${playerName(game.currentBidder)} to bid.`;
-  scheduleBotBidIfNeeded();
-}
-function runBotBidding() {
-  if (!game.started || game.phase !== 'bidding' || game.currentBidder === null || !game.bot[game.currentBidder]) return;
-  const seat = game.currentBidder;
-  if (botBidIsSuspended(game.currentBidder)) {
-    if (!game.highBid) {
-      voteBitterBunch(seat);
-      return;
-    }
-    passBid(seat);
-    game.prompt = `${playerName(seat)} must pass after being set twice.`;
-    advanceBidding();
-    return;
-  }
-  const next = minLegalBid();
-  if (!game.highBid) {
-    if (botShouldVoteBitter(seat)) {
-      voteBitterBunch(seat);
-      return;
-    }
-    recordBid(seat, BID_START);
-  } else {
-    const maxBid = estimateMaxBid(game.hands[seat]);
-    if (next <= 400 && next <= maxBid) recordBid(seat, next); else passBid(seat);
-  }
-  advanceBidding();
-}
-
-function botBidIsSuspended(seat) {
-  return game.handNumber <= (game.botBidBlockedThroughHand[seat] || 0);
-}
-
-function recordBotBidResult(seat, madeBid, bidderPoints = 0) {
-  if (seat === null || !game.bot[seat] || madeBid) return;
-  const deficit = Math.max(0, game.highBid - (Number(bidderPoints) || 0));
-  const strikes = deficit > 40 ? 2 : 1;
-  game.botBidSetCounts[seat] = (game.botBidSetCounts[seat] || 0) + strikes;
-  if (game.botBidSetCounts[seat] < 2) return;
-  game.botBidSetCounts[seat] = 0;
-  game.botBidBlockedThroughHand[seat] = game.handNumber + 3;
-}
-function scheduleBotBidIfNeeded() {
+function resetToWaiting() {
   clearTimeout(botTimer);
-  if (game.phase === 'bidding' && game.currentBidder !== null && game.bot[game.currentBidder]) botTimer = setTimeout(runBotBidding, BOT_DELAY.bid);
-}
-
-function finishBidding() {
-  game.phase = 'pickup';
-  game.bidTeam = game.highBidder;
-  game.kittyAccepted = false;
-  game.selectedDiscards = [];
-  sortHand(game.hands[game.highBidder]);
-  game.prompt = `${playerName(game.highBidder)} won the bid at ${game.highBid}. View the kitty, accept it, then choose trump.`;
-  if (game.bot[game.highBidder]) botFinishPickup();
-}
-function acceptKitty(seat) {
-  if (game.phase !== 'pickup' || game.highBidder !== seat || game.kittyAccepted) return false;
-  game.hands[seat].push(...game.kitty);
-  game.kitty = [];
-  game.kittyAccepted = true;
-  sortHand(game.hands[seat]);
-  game.prompt = `${playerName(seat)} accepted the kitty. Choose trump.`;
-  return true;
-}
-function chooseTrump(seat, trump) {
-  if (game.phase !== 'pickup' || game.highBidder !== seat || !game.kittyAccepted) return false;
-  if (!(SUITS.includes(trump) || trump === 'none')) return false;
-  game.trump = trump;
-  game.phase = 'discard';
-  game.hands.forEach(sortHand);
-  game.prompt = `${playerName(seat)} chose ${trump === 'none' ? 'No Trump' : `${trump} trump`}. Return 9 cards to the kitty.`;
-  return true;
-}
-
-function changeTrump(seat) {
-  if (game.highBidder !== seat || !game.kittyAccepted || game.trick.length || game.playedCards.length) return false;
-  if (game.phase === 'playing') {
-    game.hands[seat].push(...game.kitty);
-    game.kitty = [];
-  } else if (game.phase !== 'discard') return false;
-  game.trump = null;
-  game.selectedDiscards = [];
-  game.phase = 'pickup';
-  game.hands.forEach(sortHand);
-  game.prompt = `${playerName(seat)} may choose a different trump before returning the kitty.`;
-  return true;
-}
-function changeKitty(seat) {
-  if (game.phase !== 'playing' || game.highBidder !== seat || game.trick.length || game.playedCards.length) return false;
-  game.hands[seat].push(...game.kitty);
-  game.kitty = [];
-  game.selectedDiscards = [];
-  game.phase = 'discard';
-  sortHand(game.hands[seat]);
-  game.prompt = `${playerName(seat)} may choose a different 9-card kitty before leading.`;
-  return true;
-}
-function selectDiscards(seat, ids) {
-  if (game.phase !== 'discard' || game.highBidder !== seat || !Array.isArray(ids)) return false;
-  const unique = [...new Set(ids)].filter(id => game.hands[seat].some(c => c.id === id));
-  if (unique.length > KITTY_SIZE) return false;
-  game.selectedDiscards = unique;
-  return true;
-}
-function finishDiscard(seat) {
-  if (game.phase !== 'discard' || game.highBidder !== seat || game.selectedDiscards.length !== KITTY_SIZE) return false;
-  const ids = new Set(game.selectedDiscards);
-  game.kitty = game.hands[seat].filter(c => ids.has(c.id));
-  game.hands[seat] = game.hands[seat].filter(c => !ids.has(c.id));
-  game.selectedDiscards = [];
-  sortHand(game.hands[seat]);
-  game.leader = seat; game.turn = seat; game.trick = []; game.phase = 'playing'; game.prompt = `${playerName(seat)} leads.`;
-  scheduleTurn();
-  return true;
-}
-function botFinishPickup() {
-  const seat = game.highBidder;
-  if (!game.bot[seat] || game.phase !== 'pickup') return;
-  acceptKitty(seat);
-  const trump = chooseBestTrump(game.hands[seat]);
-  chooseTrump(seat, trump);
-  clearTimeout(botTimer);
-  botTimer = setTimeout(() => {
-    if (!game.bot[seat] || game.phase !== 'discard' || game.highBidder !== seat || game.trump !== trump) return;
-    const discards = chooseBotDiscards(game.hands[seat], trump);
-    selectDiscards(seat, discards.map(c => c.id));
-    finishDiscard(seat);
-  }, TRUMP_REVEAL_MS);
-}
-function resolveTrick() {
-  const winner = trickWinner(game.trick);
-  const points = game.trick.reduce((n, x) => n + cardPoints(x.card), 0);
-  game.handPoints[winner] += points;
-  game.tricksWon[winner] += 1;
-  game.lastTrick = { plays: game.trick.map(x => ({ seat: x.seat, card: { ...x.card } })), winner, points };
-  game.revealUntil = now() + TRICK_REVEAL_MS;
-  game.phase = 'trickReveal';
-  game.prompt = `${playerName(winner)} won the trick.`;
-  clearTimeout(revealTimer);
-  revealTimer = setTimeout(() => {
-    game.trick = [];
-    if (game.hands.every(h => h.length === 0)) scoreHand();
-    else { game.leader = winner; game.turn = winner; game.phase = 'playing'; game.prompt = `${playerName(winner)} leads.`; scheduleTurn(); }
-  }, TRICK_REVEAL_MS);
-}
-function scheduleTurn() {
-  clearTimeout(botTimer);
-  if (game.phase === 'playing' && game.bot[game.turn]) botTimer = setTimeout(() => botPlay(game.turn), BOT_DELAY.play);
-}
-function playCard(seat, cardId) {
-  if (game.phase !== 'playing' || game.turn !== seat) return false;
-  const legal = new Set(legalCards(seat).map(c => c.id));
-  if (!legal.has(cardId)) return false;
-  const index = game.hands[seat].findIndex(c => c.id === cardId);
-  if (index < 0) return false;
-  const card = game.hands[seat].splice(index, 1)[0];
-  game.playedCards.push({ ...card });
-  game.playHistory.push({ seat, card: { ...card }, led: game.trick.length === 0 });
-  game.trick.push({ seat, card });
-  if (game.trick.length === 3) resolveTrick();
-  else { game.turn = (seat + 1) % 3; game.prompt = `${playerName(game.turn)} to play.`; scheduleTurn(); }
-  return true;
-}
-function botPlay(seat) {
-  if (game.phase !== 'playing' || game.turn !== seat || !game.bot[seat]) return;
-  if (canClaimRest(seat)) { claimRest(seat); return; }
-  const card = chooseBotCard(seat);
-  if (card) playCard(seat, card.id);
-}
-function canClaimRest(seat) {
-  if (game.phase !== 'playing' || game.highBidder !== seat || game.turn !== seat || game.trick.length || !(game.hands[seat] || []).length) return false;
-  const bidderHand = game.hands[seat].map(card => ({ ...card }));
-  const opponentHands = [0, 1, 2].filter(i => i !== seat).map(i => game.hands[i].map(card => ({ ...card })));
-  const remove = (hand, card) => { const index = hand.findIndex(item => item.id === card.id); if (index >= 0) hand.splice(index, 1); };
-  while (bidderHand.length) {
-    const lead = [...bidderHand].sort((a, b) => cardRank(b) - cardRank(a) || cardPoints(b) - cardPoints(a))[0];
-    const leadSuit = effectiveSuit(lead);
-    for (const hand of opponentHands) {
-      const followers = hand.filter(card => effectiveSuit(card) === leadSuit);
-      const legal = followers.length ? followers : hand;
-      if (legal.some(card => beats(card, lead, leadSuit))) return false;
-      if (followers.length) remove(hand, [...followers].sort((a, b) => cardRank(a) - cardRank(b) || cardPoints(a) - cardPoints(b))[0]);
-    }
-    remove(bidderHand, lead);
-  }
-  return true;
-}
-function claimRest(seat) {
-  if (!canClaimRest(seat)) return false;
-  clearTimeout(botTimer); clearTimeout(revealTimer);
-  game.claimReveal = game.hands.map(hand => hand.map(card => ({ ...card })));
-  const remaining = game.hands.flatMap(hand => hand.splice(0));
-  const points = remaining.reduce((total, card) => total + cardPoints(card), 0);
-  game.handPoints[seat] += points;
-  game.tricksWon[seat] += remaining.length / 3;
-  game.lastTrick = { plays: [], winner: seat, points };
-  game.trick = [];
-  game.prompt = `${playerName(seat)} claims the remaining tricks.`;
-  scoreHand();
-  return true;
-}
-function canGoDown(seat) {
-  if (!['pickup', 'discard', 'playing', 'trickReveal'].includes(game.phase) || game.highBidder !== seat) return false;
-  const facedLiveOpponent = game.humanSeatsThisHand.some((isHuman, player) => isHuman && player !== seat);
-  if (!facedLiveOpponent) return true;
-  const bidderCardsPlayed = game.playHistory.filter(play => play.seat === seat).length;
-  return bidderCardsPlayed < 6;
-}
-function goDown(seat) {
-  if (!canGoDown(seat)) return false;
-  clearTimeout(botTimer); clearTimeout(revealTimer);
-  const bidder = game.highBidder;
-  const defenders = [0, 1, 2].filter(player => player !== bidder);
-  game.claimReveal = game.hands.map(hand => hand.map(card => ({ ...card })));
+  game.phase = 'waiting';
+  game.round = 0;
+  game.dealer = 2;
+  game.turn = 0;
+  game.turnStage = 'draw';
+  game.scores = [0, 0, 0];
   game.hands = [[], [], []];
-  game.trick = [];
-  game.selectedDiscards = [];
-  game.handPoints = [0, 0, 0];
-  game.scores[bidder] = Math.max(0, game.scores[bidder] - game.highBid);
-  recordBotBidResult(bidder, false, 0);
-  game.lastHandResult = {
-    bid: game.highBid,
-    bidder,
-    bidderPoints: 0,
-    bidMade: false,
-    defenderTotal: 0,
-    defenderShares: defenders.map(player => ({ seat: player, name: playerName(player), points: 0 })),
-    totalPoints: 0,
-    wentDown: true
-  };
-  game.phase = 'scoring';
-  game.prompt = `${playerName(bidder)} went down and loses the ${game.highBid} bid.`;
-  const winner = game.scores.findIndex(score => score >= WIN_SCORE);
-  if (winner >= 0) { game.winner = winner; game.phase = 'gameover'; }
+  game.laidDown = [[], [], []];
+  game.stock = [];
+  game.discard = [];
+  game.drawnCardId = null;
+  game.outPlayer = null;
+  game.finalTurns = [];
+  game.lastRound = null;
+  game.roundHistory = [];
+  game.winnerSeats = [];
+  game.prompt = 'Choose Daryl, Cristi, or Cindy to begin.';
+}
+
+function dealRound() {
+  clearTimeout(botTimer);
+  if (game.round >= FINAL_ROUND) return false;
+  if (game.round > 0) game.dealer = (game.dealer + 1) % 3;
+  game.round += 1;
+  const cardsPerPlayer = game.round + 2;
+  game.stock = shuffle(buildDeck());
+  game.hands = [[], [], []];
+  game.laidDown = [[], [], []];
+  for (let card = 0; card < cardsPerPlayer; card++) {
+    for (let offset = 1; offset <= 3; offset++) game.hands[(game.dealer + offset) % 3].push(game.stock.pop());
+  }
+  game.hands.forEach(hand => sortHand(hand));
+  game.discard = [game.stock.pop()];
+  game.turn = (game.dealer + 1) % 3;
+  game.turnStage = 'draw';
+  game.drawnCardId = null;
+  game.outPlayer = null;
+  game.finalTurns = [];
+  game.lastRound = null;
+  game.winnerSeats = [];
+  game.phase = 'playing';
+  game.prompt = `${PLAYER_NAMES[game.turn]} draws first. ${rankLabel(wildRank())}s are wild.`;
+  scheduleBot();
   return true;
 }
 
-function scoreHand() {
-  const lastWinner = game.lastTrick?.winner ?? game.leader;
-  const kittyPoints = game.kitty.reduce((n, c) => n + cardPoints(c), 0) + 20;
-  const points = game.handPoints.slice();
-  points[lastWinner] += kittyPoints;
-  const bidder = game.highBidder;
-  const defenders = [0,1,2].filter(seat => seat !== bidder);
-  const bidderPoints = points[bidder] || 0;
-  const defenderTotal = defenders.reduce((n, seat) => n + (points[seat] || 0), 0);
-  const madeBid = bidderPoints >= game.highBid;
-  recordBotBidResult(bidder, madeBid, bidderPoints);
-  const defenderShares = [
-    { seat: defenders[0], name: playerName(defenders[0]), points: defenderTotal },
-    { seat: defenders[1], name: playerName(defenders[1]), points: defenderTotal },
-  ];
-  game.scores[bidder] = madeBid ? game.scores[bidder] + bidderPoints : Math.max(0, game.scores[bidder] - game.highBid);
-  game.scores[defenders[0]] += defenderTotal;
-  game.scores[defenders[1]] += defenderTotal;
-  game.lastHandResult = {
-    bid: game.highBid,
-    bidder,
-    bidderPoints,
-    bidMade: madeBid,
-    defenderTotal,
-    defenderShares,
-    totalPoints: bidderPoints + defenderTotal
+function startGame() {
+  game.scores = [0, 0, 0];
+  game.round = 0;
+  game.dealer = 2;
+  game.roundHistory = [];
+  game.lastRound = null;
+  game.winnerSeats = [];
+  return dealRound();
+}
+
+const SAVE_FIELDS = ['phase', 'round', 'dealer', 'turn', 'turnStage', 'scores', 'hands', 'laidDown', 'stock', 'discard', 'drawnCardId', 'outPlayer', 'finalTurns', 'lastRound', 'roundHistory', 'winnerSeats', 'bot', 'chat', 'prompt'];
+
+function createSaveCode() {
+  const snapshot = { saveVersion: 1, gameVersion: VERSION, savedAt: Date.now() };
+  for (const field of SAVE_FIELDS) snapshot[field] = game[field];
+  return Buffer.from(JSON.stringify(snapshot), 'utf8').toString('base64url');
+}
+
+function decodeSaveCode(saveCode) {
+  if (typeof saveCode !== 'string' || !saveCode || saveCode.length > 100000) return null;
+  try {
+    const snapshot = JSON.parse(Buffer.from(saveCode, 'base64url').toString('utf8'));
+    const validPhase = ['playing', 'roundEnd', 'gameover'].includes(snapshot?.phase);
+    const validRound = Number.isInteger(snapshot?.round) && snapshot.round >= 1 && snapshot.round <= FINAL_ROUND;
+    const threeHands = Array.isArray(snapshot?.hands) && snapshot.hands.length === 3 && snapshot.hands.every(Array.isArray);
+    const threeScores = Array.isArray(snapshot?.scores) && snapshot.scores.length === 3 && snapshot.scores.every(Number.isFinite);
+    const threeBots = Array.isArray(snapshot?.bot) && snapshot.bot.length === 3 && snapshot.bot.every(value => typeof value === 'boolean');
+    const validTurn = Number.isInteger(snapshot?.turn) && snapshot.turn >= 0 && snapshot.turn < 3;
+    if (snapshot?.saveVersion !== 1 || !validPhase || !validRound || !threeHands || !threeScores || !threeBots || !validTurn || !Array.isArray(snapshot.stock) || !Array.isArray(snapshot.discard)) return null;
+    return snapshot;
+  } catch (error) {
+    return null;
+  }
+}
+
+function restoreSavedGame(saveCode, loadingSeat) {
+  const snapshot = decodeSaveCode(saveCode);
+  if (!snapshot) return false;
+  clearTimeout(botTimer);
+  const restored = JSON.parse(JSON.stringify(snapshot));
+  for (const field of SAVE_FIELDS) game[field] = restored[field];
+  game.live = [false, false, false];
+  game.lastSeen = [0, 0, 0];
+  game.live[loadingSeat] = true;
+  game.bot[loadingSeat] = false;
+  game.lastSeen[loadingSeat] = Date.now();
+  scheduleBot();
+  return true;
+}
+
+function drawCard(seat, source) {
+  if (game.phase !== 'playing' || game.turn !== seat || game.turnStage !== 'draw') return false;
+  let card = null;
+  if (source === 'discard') {
+    if (!game.discard.length) return false;
+    card = game.discard.pop();
+  } else {
+    if (!ensureStock()) return false;
+    card = game.stock.pop();
+  }
+  game.hands[seat].push(card);
+  sortHand(game.hands[seat]);
+  game.drawnCardId = card.id;
+  game.turnStage = 'discard';
+  game.prompt = `${PLAYER_NAMES[seat]} chooses a discard.`;
+  return true;
+}
+
+function goOutDiscardIds(seat) {
+  if (game.phase !== 'playing' || game.turn !== seat || game.turnStage !== 'discard' || game.outPlayer !== null) return [];
+  return game.hands[seat]
+    .filter(card => analyzeHand(game.hands[seat].filter(item => item.id !== card.id), wildRank()).penalty === 0)
+    .map(card => card.id);
+}
+
+function nextFinalPlayer(afterSeat) {
+  for (let step = 1; step <= 3; step++) {
+    const seat = (afterSeat + step) % 3;
+    if (game.finalTurns.includes(seat)) return seat;
+  }
+  return null;
+}
+
+function discardCard(seat, cardId, declareOut = false) {
+  if (game.phase !== 'playing' || game.turn !== seat || game.turnStage !== 'discard') return false;
+  const index = game.hands[seat].findIndex(card => card.id === cardId);
+  if (index < 0) return false;
+  if (declareOut && !goOutDiscardIds(seat).includes(cardId)) return false;
+  const [discarded] = game.hands[seat].splice(index, 1);
+  game.discard.push(discarded);
+  game.drawnCardId = null;
+
+  if (declareOut && game.outPlayer === null) {
+    const analysis = analyzeHand(game.hands[seat], wildRank());
+    game.laidDown[seat] = analysis.melds;
+    game.hands[seat] = [];
+    game.outPlayer = seat;
+    game.finalTurns = [0, 1, 2].filter(player => player !== seat);
+    game.prompt = `${PLAYER_NAMES[seat]} went out. Everyone else gets one final turn.`;
+  } else if (game.outPlayer !== null) {
+    game.finalTurns = game.finalTurns.filter(player => player !== seat);
+  }
+
+  if (game.outPlayer !== null && !game.finalTurns.length) {
+    scoreRound();
+    return true;
+  }
+
+  game.turn = game.outPlayer === null ? (seat + 1) % 3 : nextFinalPlayer(seat);
+  game.turnStage = 'draw';
+  game.prompt = game.outPlayer === null
+    ? `${PLAYER_NAMES[game.turn]}'s turn to draw.`
+    : `${PLAYER_NAMES[game.turn]} takes a final turn.`;
+  scheduleBot();
+  return true;
+}
+
+function scoreRound() {
+  clearTimeout(botTimer);
+  const results = [0, 1, 2].map(seat => {
+    if (seat === game.outPlayer) {
+      return { seat, name: PLAYER_NAMES[seat], points: 0, melds: game.laidDown[seat], deadwood: [] };
+    }
+    const analysis = analyzeHand(game.hands[seat], wildRank());
+    return { seat, name: PLAYER_NAMES[seat], points: analysis.penalty, melds: analysis.melds, deadwood: analysis.deadwood };
+  });
+  for (const result of results) game.scores[result.seat] += result.points;
+  game.lastRound = {
+    round: game.round,
+    cardsPerPlayer: game.round + 2,
+    wildRank: wildRank(),
+    outPlayer: game.outPlayer,
+    results,
+    totals: game.scores.slice()
   };
-  game.phase = 'scoring';
-  game.prompt = `Hand ${game.handNumber} complete.`;
-  const winner = game.scores.findIndex(s => s >= WIN_SCORE);
-  if (winner >= 0) { game.winner = winner; game.phase = 'gameover'; }
+  game.roundHistory.push(game.lastRound);
+  game.hands = [[], [], []];
+  if (game.round >= FINAL_ROUND) {
+    const lowScore = Math.min(...game.scores);
+    game.winnerSeats = game.scores.map((score, seat) => score === lowScore ? seat : -1).filter(seat => seat >= 0);
+    game.phase = 'gameover';
+    game.prompt = game.winnerSeats.length === 1
+      ? `${PLAYER_NAMES[game.winnerSeats[0]]} wins with ${lowScore} points.`
+      : `${game.winnerSeats.map(seat => PLAYER_NAMES[seat]).join(' and ')} tie with ${lowScore} points.`;
+  } else {
+    game.phase = 'roundEnd';
+    game.prompt = `Round ${game.round} complete. ${rankLabel(wildRank(game.round + 1))}s are wild next.`;
+  }
+}
+
+function botDraw(seat) {
+  if (game.phase !== 'playing' || game.turn !== seat || game.turnStage !== 'draw') return;
+  const currentPenalty = analyzeHand(game.hands[seat], wildRank()).penalty;
+  const top = game.discard.at(-1);
+  let source = 'stock';
+  if (top) {
+    const candidate = bestDiscard([...game.hands[seat], top], wildRank());
+    if (candidate && (candidate.analysis.penalty < currentPenalty || isWild(top, wildRank()))) source = 'discard';
+  }
+  drawCard(seat, source);
+  botTimer = setTimeout(() => botDiscard(seat), Math.max(20, BOT_DELAY_MS * 0.7));
+}
+
+function botDiscard(seat) {
+  if (game.phase !== 'playing' || game.turn !== seat || game.turnStage !== 'discard') return;
+  const choice = bestDiscard(game.hands[seat], wildRank());
+  if (!choice) return;
+  const declareOut = game.outPlayer === null && choice.analysis.penalty === 0;
+  discardCard(seat, choice.card.id, declareOut);
+}
+
+function scheduleBot() {
+  clearTimeout(botTimer);
+  if (game.phase !== 'playing' || !game.bot[game.turn]) return;
+  botTimer = setTimeout(() => botDraw(game.turn), BOT_DELAY_MS);
+}
+
+function touchSession(token) {
+  const session = sessions.get(token);
+  if (!session) return null;
+  session.lastSeen = Date.now();
+  game.lastSeen[session.seat] = session.lastSeen;
+  if (!game.live[session.seat]) {
+    game.live[session.seat] = true;
+    game.bot[session.seat] = false;
+  }
+  return session;
 }
 
 function publicState(seat) {
-  const hand = seat >= 0 ? game.hands[seat] || [] : [];
-  const visibleKitty = seat === game.highBidder ? game.kitty : [];
+  const ownHand = seat >= 0 ? game.hands[seat] || [] : [];
+  const discardTop = game.discard.at(-1) || null;
   return {
     version: VERSION,
     phase: game.phase,
-    handNumber: game.handNumber,
+    round: game.round,
+    finalRound: FINAL_ROUND,
+    cardsPerPlayer: game.round ? game.round + 2 : 0,
+    wildRank: game.round ? wildRank() : null,
     dealer: game.dealer,
-    currentBidder: game.currentBidder,
-    highBid: game.highBid,
-    highBidder: game.highBidder,
-    lastBidderName: game.lastBidderName,
-    bidHistory: game.bidHistory,
-    passed: game.passed,
-    prompt: game.prompt,
-    trump: game.trump,
-    kitty: visibleKitty,
-    kittyCount: game.kitty.length,
-    kittyAccepted: game.kittyAccepted,
-    cardsPlayed: game.playedCards.length,
-    selectedDiscards: seat === game.highBidder ? game.selectedDiscards : [],
-    hands: [0,1,2].map(i => i === seat ? (game.hands[i] || []) : []),
-    handCounts: game.hands.map(h => h.length),
-    trick: game.trick,
-    lastTrick: game.lastTrick,
-    revealUntil: game.revealUntil,
     turn: game.turn,
-    leader: game.leader,
+    turnStage: game.turnStage,
     scores: game.scores,
-    handPoints: game.handPoints,
-    tricksWon: game.tricksWon,
-    lastHandResult: game.lastHandResult,
-    defenders: game.highBidder === null ? [] : [0,1,2].filter(i => i !== game.highBidder),
-    seats: PLAYER_NAMES.map((name, i) => ({ seat: i, name, connected: game.live[i], bot: game.bot[i] })),
+    hands: [0, 1, 2].map(player => player === seat ? ownHand : []),
+    handPoints: seat >= 0 && game.round ? analyzeHand(ownHand, wildRank()).penalty : null,
+    handCounts: game.hands.map((hand, player) => player === game.outPlayer ? 0 : hand.length),
+    stockCount: game.stock.length,
+    discardTop,
+    discardCount: game.discard.length,
+    drawnCardId: game.turn === seat ? game.drawnCardId : null,
+    outPlayer: game.outPlayer,
+    finalTurns: game.finalTurns,
+    goOutDiscardIds: goOutDiscardIds(seat),
+    lastRound: game.lastRound,
+    roundHistory: game.roundHistory.map(round => ({ round: round.round, totals: round.totals, results: round.results.map(result => ({ seat: result.seat, points: result.points })) })),
+    winnerSeats: game.winnerSeats,
+    seats: PLAYER_NAMES.map((name, player) => ({ seat: player, name, connected: game.live[player], bot: game.bot[player] })),
     chat: game.chat,
-    winner: game.winner,
-    canClaimRest: canClaimRest(seat),
-    canGoDown: canGoDown(seat),
-    claimReveal: game.claimReveal,
-    bitterVotes: game.bitterVotes,
-    canRedeal: game.phase === 'bidding' && !game.highBid && game.misdealSeats.includes(seat),
+    prompt: game.prompt
   };
 }
-function getSession(token) { return sessions.get(String(token || '')) || null; }
-function refreshLive() {
-  const cutoff = now() - PLAYER_TIMEOUT_MS;
-  for (let i = 0; i < 3; i++) {
-    if (game.live[i] && game.lastSeen[i] < cutoff) {
-      game.live[i] = false;
-      if (game.started) game.bot[i] = true;
-    }
-  }
+
+function json(response, status, body) {
+  response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*' });
+  response.end(JSON.stringify(body));
 }
-function json(res, status, payload) {
-  const body = JSON.stringify(payload);
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type' });
-  res.end(body);
-  return true;
-}
-function readJson(req) {
+
+function readBody(request) {
   return new Promise((resolve, reject) => {
     let body = '';
-    req.on('data', chunk => { body += chunk; if (body.length > 10000) req.destroy(); });
-    req.on('end', () => { try { resolve(body ? JSON.parse(body) : {}); } catch (e) { reject(e); } });
-    req.on('error', reject);
+    request.on('data', chunk => {
+      body += chunk;
+      if (body.length > 100000) request.destroy();
+    });
+    request.on('end', () => {
+      try { resolve(body ? JSON.parse(body) : {}); } catch (error) { reject(error); }
+    });
+    request.on('error', reject);
   });
 }
-async function api(req, res) {
-  refreshLive();
-  if (req.method === 'OPTIONS') { res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type' }); res.end(); return true; }
-  if (req.method === 'POST' && req.url === '/api/join') {
-    const data = await readJson(req);
-    const name = cleanName(data.name);
-    if (!name) return json(res, 400, { ok: false, message: 'Choose Daryl, Cristi, or Cindy.' });
-    let seat = PLAYER_NAMES.indexOf(name);
-    const current = sessions.get(data.token || '');
-    if (current && current.name === name) seat = current.seat;
-    game.live[seat] = true; game.bot[seat] = false; game.lastSeen[seat] = now(); game.humanSeatsThisHand[seat] = true;
-    const token = current?.token || makeId('s_');
-    sessions.set(token, { token, name, seat });
-    if (game.started && game.bot[seat]) game.bot[seat] = false;
-    return json(res, 200, { ok: true, token, name, seat, state: publicState(seat) });
+
+async function handleApi(request, response, url) {
+  try {
+    if (request.method === 'POST' && url.pathname === '/api/join') {
+      const data = await readBody(request);
+      const seat = PLAYER_NAMES.indexOf(String(data.name || ''));
+      if (seat < 0) return json(response, 400, { ok: false, message: 'Choose Daryl, Cristi, or Cindy.' });
+      const existing = data.token && sessions.get(data.token);
+      const token = existing?.seat === seat ? data.token : randomToken();
+      sessions.set(token, { token, seat, name: PLAYER_NAMES[seat], lastSeen: Date.now() });
+      game.live[seat] = true;
+      game.bot[seat] = false;
+      game.lastSeen[seat] = Date.now();
+      return json(response, 200, { ok: true, token, seat, name: PLAYER_NAMES[seat], state: publicState(seat) });
+    }
+
+    if (request.method === 'GET' && url.pathname === '/api/state') {
+      const session = touchSession(url.searchParams.get('token'));
+      if (!session) return json(response, 401, { ok: false, message: 'Choose your player again.' });
+      return json(response, 200, { ok: true, state: publicState(session.seat) });
+    }
+
+    if (request.method === 'POST' && url.pathname === '/api/heartbeat') {
+      const data = await readBody(request);
+      const session = touchSession(data.token);
+      return json(response, session ? 200 : 401, { ok: Boolean(session) });
+    }
+
+    if (request.method === 'POST' && url.pathname === '/api/save') {
+      const data = await readBody(request);
+      const session = touchSession(data.token);
+      if (!session) return json(response, 401, { ok: false, message: 'Choose your player again.' });
+      if (!['playing', 'roundEnd', 'gameover'].includes(game.phase)) return json(response, 400, { ok: false, message: 'Start a game before saving.' });
+      return json(response, 200, { ok: true, saveCode: createSaveCode(), savedAt: Date.now(), state: publicState(session.seat) });
+    }
+
+    if (request.method === 'POST' && url.pathname === '/api/load') {
+      const data = await readBody(request);
+      const session = touchSession(data.token);
+      if (!session) return json(response, 401, { ok: false, message: 'Choose your player again.' });
+      if (!restoreSavedGame(data.saveCode, session.seat)) return json(response, 400, { ok: false, message: 'That saved game cannot be loaded.' });
+      return json(response, 200, { ok: true, state: publicState(session.seat) });
+    }
+
+    if (request.method === 'POST' && url.pathname === '/api/action') {
+      const data = await readBody(request);
+      const session = touchSession(data.token);
+      if (!session) return json(response, 401, { ok: false, message: 'Choose your player again.' });
+      let ok = false;
+      if (data.action === 'start' || data.action === 'newGame') ok = startGame();
+      else if (data.action === 'nextRound' && game.phase === 'roundEnd') ok = dealRound();
+      else if (data.action === 'draw') ok = drawCard(session.seat, data.source === 'discard' ? 'discard' : 'stock');
+      else if (data.action === 'discard') ok = discardCard(session.seat, String(data.cardId || ''), Boolean(data.goOut));
+      else if (data.action === 'chat') {
+        const text = String(data.text || '').trim().slice(0, 240);
+        if (text) {
+          game.chat.push({ name: session.name, text, time: Date.now() });
+          game.chat = game.chat.slice(-60);
+          ok = true;
+        }
+      }
+      if (!ok) return json(response, 400, { ok: false, message: 'That move is not available now.' });
+      return json(response, 200, { ok: true, state: publicState(session.seat) });
+    }
+
+    return json(response, 404, { ok: false, message: 'Not found.' });
+  } catch (error) {
+    return json(response, 500, { ok: false, message: error.message || 'Server error.' });
   }
-  if (req.method === 'GET' && req.url.startsWith('/api/state')) {
-    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-    const session = getSession(url.searchParams.get('token'));
-    if (!session) return json(res, 401, { ok: false, message: 'Session expired. Choose your player again.' });
-    game.live[session.seat] = true; game.bot[session.seat] = false; game.lastSeen[session.seat] = now();
-    return json(res, 200, { ok: true, state: publicState(session.seat) });
-  }
-  if (req.method === 'POST' && req.url === '/api/heartbeat') {
-    const data = await readJson(req); const s = getSession(data.token);
-    if (!s) return json(res, 401, { ok: false, message: 'Session expired.' });
-    game.live[s.seat] = true; game.bot[s.seat] = false; game.lastSeen[s.seat] = now();
-    return json(res, 200, { ok: true });
-  }
-  if (req.method === 'POST' && req.url === '/api/action') {
-    const data = await readJson(req); const s = getSession(data.token);
-    if (!s) return json(res, 401, { ok: false, message: 'Session expired.' });
-    game.live[s.seat] = true; game.bot[s.seat] = false; game.lastSeen[s.seat] = now();
-    let ok = true;
-    if (data.action === 'start') beginGame();
-    else if (data.action === 'bitterBunch') ok = voteBitterBunch(s.seat);
-    else if (data.action === 'redeal') ok = redealMisdeal(s.seat);
-    else if (data.action === 'bid') {
-      if (game.phase !== 'bidding' || game.currentBidder !== s.seat || game.bot[s.seat]) ok = false;
-      else { const bid = Number(data.bid); const min = minLegalBid(); if (!Number.isFinite(bid) || bid < min || bid > 400 || (bid > 200 && bid < 400)) ok = false; else { recordBid(s.seat, bid); advanceBidding(); } }
-    } else if (data.action === 'pass') {
-      if (game.phase !== 'bidding' || !game.highBid || game.currentBidder !== s.seat || game.bot[s.seat]) ok = false; else { passBid(s.seat); advanceBidding(); }
-    } else if (data.action === 'acceptKitty') ok = acceptKitty(s.seat);
-    else if (data.action === 'trump') ok = chooseTrump(s.seat, data.trump);
-    else if (data.action === 'changeTrump') ok = changeTrump(s.seat);
-    else if (data.action === 'changeKitty') ok = changeKitty(s.seat);
-    else if (data.action === 'selectDiscard' || data.action === 'selectDiscards') ok = selectDiscards(s.seat, data.cardIds);
-    else if (data.action === 'discard') { ok = selectDiscards(s.seat, data.cardIds); if (ok) ok = finishDiscard(s.seat); }
-    else if (data.action === 'play') ok = playCard(s.seat, data.cardId);
-    else if (data.action === 'claimRest') ok = claimRest(s.seat);
-    else if (data.action === 'goDown') ok = goDown(s.seat);
-    else if (data.action === 'chat') { const text = String(data.text || '').trim().slice(0, 240); if (text) game.chat.push({ name: playerName(s.seat), text, at: now() }); game.chat = game.chat.slice(-60); }
-    else if (data.action === 'nextHand') { if (game.phase === 'scoring') resetHand(); else ok = false; }
-    else if (data.action === 'newGame') { game.scores = [0,0,0]; game.botBidSetCounts = [0,0,0]; game.botBidBlockedThroughHand = [0,0,0]; game.handNumber = 0; game.started = false; game.winner = null; resetHand(); game.started = true; ok = true; }
-    else ok = false;
-    if (game.phase === 'bidding') scheduleBotBidIfNeeded();
-    if (!ok) return json(res, 400, { ok: false, message: 'That action is not available right now.', state: publicState(s.seat) });
-    return json(res, 200, { ok: true, state: publicState(s.seat) });
-  }
-  return false;
 }
 
-const server = http.createServer(async (req, res) => {
-  try {
-    const handled = await api(req, res);
-    if (handled) return;
-    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-    const requestPath = url.pathname === '/' ? '/index.html' : url.pathname;
-    const relative = path.normalize(requestPath).replace(/^[/\\]+/, '');
-    const filePath = path.join(PUBLIC_DIR, relative);
-    if (!filePath.startsWith(PUBLIC_DIR)) { res.writeHead(403); res.end('Forbidden'); return; }
-    fs.readFile(filePath, (err, content) => {
-      if (err) { res.writeHead(err.code === 'ENOENT' ? 404 : 500); res.end(err.code === 'ENOENT' ? 'Not found' : 'Server error'); return; }
-      const ext = path.extname(filePath).toLowerCase();
-      const type = ext === '.html' ? 'text/html; charset=utf-8' : ext === '.js' ? 'application/javascript; charset=utf-8' : 'application/octet-stream';
-      res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-store' }); res.end(content);
+const server = http.createServer(async (request, response) => {
+  const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
+  if (request.method === 'OPTIONS' && url.pathname.startsWith('/api/')) {
+    response.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Max-Age': '600'
     });
-  } catch (error) { console.error(error); json(res, 500, { ok: false, message: 'Server error.' }); }
+    return response.end();
+  }
+  if (url.pathname.startsWith('/api/')) return handleApi(request, response, url);
+  const requested = url.pathname === '/' ? 'index.html' : url.pathname.replace(/^\/+/, '');
+  const filePath = path.resolve(__dirname, requested);
+  if (!filePath.startsWith(path.resolve(__dirname))) {
+    response.writeHead(403);
+    return response.end('Forbidden');
+  }
+  fs.readFile(filePath, (error, data) => {
+    if (error) {
+      response.writeHead(404);
+      return response.end('Not found');
+    }
+    const types = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
+    const type = types[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
+    response.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-store' });
+    response.end(data);
+  });
 });
 
-server.listen(PORT, HOST, () => console.log(`3-Handed Judd Rook ${VERSION} listening on ${HOST}:${PORT}`));
+setInterval(() => {
+  const now = Date.now();
+  for (let seat = 0; seat < 3; seat++) {
+    if (game.live[seat] && now - game.lastSeen[seat] > PLAYER_TIMEOUT_MS) {
+      game.live[seat] = false;
+      game.bot[seat] = true;
+      if (game.phase === 'playing' && game.turn === seat) scheduleBot();
+    }
+  }
+}, 3000).unref();
+
+if (require.main === module) {
+  server.listen(PORT, HOST, () => console.log(`Three-Handed Five Crowns v${VERSION} running at http://${HOST}:${PORT}`));
+}
+
+module.exports = { buildDeck, meldType, analyzeHand, bestDiscard, cardPoints, isWild, rankLabel, createSaveCode, decodeSaveCode, server };
 
