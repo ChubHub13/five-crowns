@@ -349,5 +349,6 @@
 
     (async function boot(){const saved=JSON.parse(localStorage.getItem(SESSION_KEY)||"null");if(saved?.token){state.token=saved.token;state.seat=saved.seat;state.name=saved.name;if(await poll()){startPolling();return;}if(!state.token)return;}choosePlayer();})();
   </script>
+  <script src="game-night-return.js"></script>
 </body>
 </html>
