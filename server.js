@@ -5,7 +5,7 @@ const crypto = require('crypto');
 
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
-const VERSION = '2.0.14';
+const VERSION = '2.0.15';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['stars', 'hearts', 'clubs', 'spades', 'diamonds'];
 const RANKS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -33,6 +33,8 @@ const game = {
   lastRound: null,
   roundHistory: [],
   winnerSeats: [],
+  firstHandThreeTurns: true,
+  completedTurns: [0, 0, 0],
   live: [false, false, false],
   bot: [true, true, true],
   lastSeen: [0, 0, 0],
@@ -197,6 +199,8 @@ function resetToWaiting() {
   game.lastRound = null;
   game.roundHistory = [];
   game.winnerSeats = [];
+  game.firstHandThreeTurns = true;
+  game.completedTurns = [0, 0, 0];
   game.prompt = 'Choose Daryl, Cristi, or Cindy to begin.';
 }
 
@@ -221,6 +225,7 @@ function dealRound() {
   game.finalTurns = [];
   game.lastRound = null;
   game.winnerSeats = [];
+  game.completedTurns = [0, 0, 0];
   game.phase = 'playing';
   game.prompt = `${PLAYER_NAMES[game.turn]} draws first. ${rankLabel(wildRank())}s are wild.`;
   scheduleBot();
@@ -234,6 +239,7 @@ function startGame() {
   game.roundHistory = [];
   game.lastRound = null;
   game.winnerSeats = [];
+  game.completedTurns = [0, 0, 0];
   return dealRound();
 }
 
@@ -295,8 +301,14 @@ function drawCard(seat, source) {
   return true;
 }
 
+function mayGoOutAfterThisTurn(seat) {
+  if (!game.firstHandThreeTurns || game.round !== 1) return true;
+  return game.completedTurns.every((turns, player) => player === seat ? turns >= 2 : turns >= 3);
+}
+
 function goOutDiscardIds(seat) {
   if (game.phase !== 'playing' || game.turn !== seat || game.turnStage !== 'discard' || game.outPlayer !== null) return [];
+  if (!mayGoOutAfterThisTurn(seat)) return [];
   return game.hands[seat]
     .filter(card => analyzeHand(game.hands[seat].filter(item => item.id !== card.id), wildRank()).penalty === 0)
     .map(card => card.id);
@@ -318,6 +330,7 @@ function discardCard(seat, cardId, declareOut = false) {
   const [discarded] = game.hands[seat].splice(index, 1);
   game.discard.push(discarded);
   game.drawnCardId = null;
+  game.completedTurns[seat] += 1;
 
   if (declareOut && game.outPlayer === null) {
     const analysis = analyzeHand(game.hands[seat], wildRank());
@@ -443,6 +456,8 @@ function publicState(seat) {
     lastRound: game.lastRound,
     roundHistory: game.roundHistory.map(round => ({ round: round.round, totals: round.totals, results: round.results.map(result => ({ seat: result.seat, points: result.points })) })),
     winnerSeats: game.winnerSeats,
+    firstHandThreeTurns: game.firstHandThreeTurns,
+    completedTurns: game.completedTurns,
     seats: PLAYER_NAMES.map((name, player) => ({ seat: player, name, connected: game.live[player], bot: game.bot[player] })),
     chat: game.chat,
     prompt: game.prompt
@@ -516,7 +531,10 @@ async function handleApi(request, response, url) {
       const session = touchSession(data.token);
       if (!session) return json(response, 401, { ok: false, message: 'Choose your player again.' });
       let ok = false;
-      if (data.action === 'start' || data.action === 'newGame') ok = startGame();
+      if (data.action === 'start' || data.action === 'newGame') {
+        game.firstHandThreeTurns = data.firstHandThreeTurns !== false;
+        ok = startGame();
+      }
       else if (data.action === 'nextRound' && game.phase === 'roundEnd') ok = dealRound();
       else if (data.action === 'draw') ok = drawCard(session.seat, data.source === 'discard' ? 'discard' : 'stock');
       else if (data.action === 'discard') ok = discardCard(session.seat, String(data.cardId || ''), Boolean(data.goOut));
@@ -584,4 +602,3 @@ if (require.main === module) {
 }
 
 module.exports = { buildDeck, meldType, analyzeHand, bestDiscard, cardPoints, isWild, rankLabel, createSaveCode, decodeSaveCode, server };
-
