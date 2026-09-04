@@ -5,7 +5,7 @@ const crypto = require('crypto');
 
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
-const VERSION = '2.0.15';
+const VERSION = '2.0.16';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['stars', 'hearts', 'clubs', 'spades', 'diamonds'];
 const RANKS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -28,6 +28,7 @@ const game = {
   stock: [],
   discard: [],
   drawnCardId: null,
+  lastDraw: null,
   outPlayer: null,
   finalTurns: [],
   lastRound: null,
@@ -194,6 +195,7 @@ function resetToWaiting() {
   game.stock = [];
   game.discard = [];
   game.drawnCardId = null;
+  game.lastDraw = null;
   game.outPlayer = null;
   game.finalTurns = [];
   game.lastRound = null;
@@ -221,6 +223,7 @@ function dealRound() {
   game.turn = (game.dealer + 1) % 3;
   game.turnStage = 'draw';
   game.drawnCardId = null;
+  game.lastDraw = null;
   game.outPlayer = null;
   game.finalTurns = [];
   game.lastRound = null;
@@ -296,6 +299,7 @@ function drawCard(seat, source) {
   game.hands[seat].push(card);
   sortHand(game.hands[seat]);
   game.drawnCardId = card.id;
+  game.lastDraw = { seat, source, at: Date.now() };
   game.turnStage = 'discard';
   game.prompt = `${PLAYER_NAMES[seat]} chooses a discard.`;
   return true;
@@ -450,6 +454,7 @@ function publicState(seat) {
     discardTop,
     discardCount: game.discard.length,
     drawnCardId: game.turn === seat ? game.drawnCardId : null,
+    lastDraw: game.lastDraw,
     outPlayer: game.outPlayer,
     finalTurns: game.finalTurns,
     goOutDiscardIds: goOutDiscardIds(seat),

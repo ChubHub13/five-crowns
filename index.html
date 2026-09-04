@@ -207,7 +207,9 @@
   <style>
     /* Compact table: keeps the whole game on typical tablets. */
     @media (min-width:701px) { .game-main { grid-template-rows:minmax(420px,1fr) 56px; } .table { min-height:420px; } .hand-zone { height:116px; } .player.south { bottom:105px; } }
+    .pile-card.draw-choice { animation:draw-choice .7s ease 2; outline:3px solid #ffe27b; outline-offset:4px; } .draw-choice-note { position:absolute;z-index:40;left:50%;top:24%;transform:translateX(-50%);padding:8px 12px;border-radius:999px;background:rgba(11,6,15,.9);border:1px solid var(--gold);color:#fff1b6;font-size:11px;font-weight:900;white-space:nowrap;animation:choice-note 1.6s ease forwards } @keyframes draw-choice{50%{transform:translateY(-17px) scale(1.08)}} @keyframes choice-note{0%,85%{opacity:1}100%{opacity:0;transform:translate(-50%,-10px)}}
     @media (max-width:700px) { :root { --card-w:58px; --card-h:82px; } .layout { padding:5px; gap:5px; } .sidebar { grid-template-columns:1fr 1fr; gap:5px; } .round-panel,.scoreboard { padding:8px; } .game-main { grid-template-rows:370px 54px; gap:5px; } .table { min-height:370px; } .center-piles { gap:14px; top:42%; } .hand-zone { height:96px; } .hand { justify-content:flex-start; overflow-x:auto; padding:4px 2px; } .card { margin-left:-16px; } .player { min-width:102px; padding:5px 6px; } .player.south { bottom:82px; } .turn-note { top:64px; right:7px; max-width:calc(100% - 14px); } .sidebar-actions { grid-template-columns:1fr 1fr; } }
+    @media (max-width:900px) and (orientation:landscape) { html,body { height:100%; overflow:hidden; } .topbar { min-height:52px; padding:6px 10px; } .crown-mark { width:38px;height:38px;font-size:25px; } .brand p { display:none; } .layout { grid-template-columns:170px minmax(0,1fr); padding:5px; } .sidebar { display:flex; } .history { display:none; } .game-main { grid-template-rows:minmax(320px,1fr) 48px; } .table { min-height:320px; } }
   </style>
 </head>
 <body data-theme="classic" data-version="2.0.14">
@@ -215,7 +217,7 @@
     <header class="topbar">
       <div class="brand">
         <div class="crown-mark">♛</div>
-        <div><h1>FIVE CROWNS <span class="version">v2.0.15</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
+        <div><h1>FIVE CROWNS <span class="version">v2.0.16</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
       </div>
       <div class="top-actions"><button class="btn small" id="settingsButton">Settings</button></div>
     </header>
@@ -228,7 +230,6 @@
         </section>
         <section class="panel scoreboard"><div class="panel-heading">Score · low wins</div><div id="scoreRows"></div></section>
         <section class="panel history"><div class="panel-heading">Round history</div><div id="historyRows"><div class="round-detail">No rounds scored.</div></div></section>
-        <section class="panel chat"><div class="panel-heading">Table chat</div><div class="chat-messages" id="chatMessages"></div><form class="chat-form" id="chatForm"><input id="chatInput" maxlength="240" autocomplete="off" placeholder="Message..."><button class="btn small">Send</button></form></section>
         <div class="sidebar-actions"><button class="btn small" id="playerButton">Player</button><button class="btn danger" id="newGameButton">New Game</button></div>
       </aside>
 
@@ -256,7 +257,7 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    const APP_VERSION="2.0.15";
+    const APP_VERSION="2.0.16";
     const PLAYER_NAMES=["Daryl","Cristi","Cindy"];
     const SUIT_SYMBOLS={stars:"★",hearts:"♥",clubs:"♣",spades:"♠",diamonds:"♦"};
     const SESSION_KEY="threeHandedFiveCrownsSession";
@@ -264,12 +265,12 @@
     const SAVE_KEY="threeHandedFiveCrownsSavedGame";
     const HAND_ORDER_KEY="threeHandedFiveCrownsHandOrder";
     const API=location.protocol==="file:"?"http://127.0.0.1:8080":"";
-    const state={token:null,seat:-1,name:null,data:null,poll:null,heartbeat:null,selectedCardId:null,actionBusy:false,lastRoundShown:0,lastOutPlayer:null,handOrder:JSON.parse(localStorage.getItem(HAND_ORDER_KEY)||"[]"),autoSortRound:0,autoSortDrawnId:null,draggedCardId:null,pointerDrag:null,suppressCardClickUntil:0};
+    const state={token:null,seat:-1,name:null,data:null,poll:null,heartbeat:null,selectedCardId:null,actionBusy:false,lastRoundShown:0,lastOutPlayer:null,lastDrawAt:null,handOrder:JSON.parse(localStorage.getItem(HAND_ORDER_KEY)||"[]"),autoSortRound:0,autoSortDrawnId:null,draggedCardId:null,pointerDrag:null,suppressCardClickUntil:0};
     const prefs=Object.assign({theme:"classic",sound:true,botSpeed:"normal",firstHandThreeTurns:true},JSON.parse(localStorage.getItem(PREF_KEY)||"null")||{});
     document.body.dataset.theme=prefs.theme;
     const els={
       roundValue:document.getElementById("roundValue"),roundDetail:document.getElementById("roundDetail"),wildBanner:document.getElementById("wildBanner"),wildRank:document.getElementById("wildRank"),
-      scoreRows:document.getElementById("scoreRows"),historyRows:document.getElementById("historyRows"),chatMessages:document.getElementById("chatMessages"),chatForm:document.getElementById("chatForm"),chatInput:document.getElementById("chatInput"),
+      scoreRows:document.getElementById("scoreRows"),historyRows:document.getElementById("historyRows"),
       table:document.getElementById("table"),turnNote:document.getElementById("turnNote"),roundEvent:document.getElementById("roundEvent"),stockPile:document.getElementById("stockPile"),stockCount:document.getElementById("stockCount"),discardPile:document.getElementById("discardPile"),hand:document.getElementById("humanHand"),handPoints:document.getElementById("handPoints"),controls:document.getElementById("controls"),
       backdrop:document.getElementById("backdrop"),modal:document.getElementById("modal"),toast:document.getElementById("toast")
     };
@@ -296,14 +297,14 @@
       els.roundDetail.textContent=s.round?`${s.cardsPerPlayer} cards each`:"3 cards begin the game";
       els.wildBanner.hidden=!s.wildRank;els.wildRank.textContent=s.wildRank?rankLabel(s.wildRank):"";
       els.turnNote.textContent=s.prompt||"Five Crowns";
-      renderScores(s);renderPlayers(s);renderPiles(s);renderHand(s);renderControls(s);renderHistory(s);renderChat(s);
+      renderScores(s);renderPlayers(s);renderPiles(s);renderHand(s);renderControls(s);renderHistory(s);
       if((s.phase==="roundEnd"||s.phase==="gameover")&&s.lastRound&&state.lastRoundShown!==s.round){state.lastRoundShown=s.round;showRoundScore(s);}
     }
 
     function announceWentOut(s){clearTimeout(announceWentOut.timer);els.roundEvent.hidden=false;els.roundEvent.classList.remove("show");els.roundEvent.innerHTML=`LAST TURN<span>${escapeHtml(PLAYER_NAMES[s.outPlayer])} went out · every other player gets one final turn</span>`;void els.roundEvent.offsetWidth;els.roundEvent.classList.add("show");playSound("out");announceWentOut.timer=setTimeout(()=>{els.roundEvent.hidden=true;els.roundEvent.classList.remove("show");},3000);}
     function renderScores(s){els.scoreRows.innerHTML=(s.seats||PLAYER_NAMES.map((name,seat)=>({name,seat}))).map((player,seat)=>`<div class="score-row"><div class="score-name">${escapeHtml(player.name)}<span class="score-note">${player.bot?"Bot":player.connected?"Live":"Waiting"}</span></div><div class="score-number">${s.scores?.[seat]||0}</div></div>`).join("");}
     function renderPlayers(s){for(let seat=0;seat<3;seat++){const player=document.getElementById(`player${seat}`),info=s.seats?.[seat],hasFinalTurn=s.phase==="playing"&&s.finalTurns?.includes(seat),takingFinalTurn=hasFinalTurn&&s.turn===seat;player.classList.toggle("active",s.phase==="playing"&&s.turn===seat);player.classList.toggle("out",s.outPlayer===seat);player.classList.toggle("final-turn",takingFinalTurn);document.getElementById(`detail${seat}`).textContent=s.outPlayer===seat?"WENT OUT":takingFinalTurn?`FINAL TURN · ${s.handCounts?.[seat]||0} cards`:`${info?.bot?"Bot":info?.connected?"Live":"Waiting"} · ${s.handCounts?.[seat]||0} cards`;const badges=[];if(s.dealer===seat&&s.round)badges.push('<span class="badge">DEALER</span>');if(s.outPlayer===seat)badges.push('<span class="badge out-badge">WENT OUT</span>');if(hasFinalTurn)badges.push(`<span class="badge final-badge">${takingFinalTurn?"LAST TURN NOW":"ONE TURN LEFT"}</span>`);document.getElementById(`badges${seat}`).innerHTML=badges.join("");}}
-    function renderPiles(s){els.stockCount.textContent=s.stockCount||0;const canDraw=s.phase==="playing"&&s.turn===state.seat&&s.turnStage==="draw";els.stockPile.classList.toggle("actionable",canDraw);els.stockPile.disabled=!canDraw;els.stockPile.onclick=canDraw?()=>send({action:"draw",source:"stock"}):null;els.discardPile.innerHTML=s.discardTop?cardHtml(s.discardTop,"discard-top"):'<div class="empty-discard">Empty</div>';els.discardPile.classList.toggle("actionable",canDraw&&!!s.discardTop);els.discardPile.disabled=!canDraw||!s.discardTop;els.discardPile.onclick=canDraw&&s.discardTop?()=>send({action:"draw",source:"discard"}):null;}
+    function renderPiles(s){els.stockCount.textContent=s.stockCount||0;const canDraw=s.phase==="playing"&&s.turn===state.seat&&s.turnStage==="draw";els.stockPile.classList.toggle("actionable",canDraw);els.stockPile.disabled=!canDraw;els.stockPile.onclick=canDraw?()=>send({action:"draw",source:"stock"}):null;els.discardPile.innerHTML=s.discardTop?cardHtml(s.discardTop,"discard-top"):'<div class="empty-discard">Empty</div>';els.discardPile.classList.toggle("actionable",canDraw&&!!s.discardTop);els.discardPile.disabled=!canDraw||!s.discardTop;els.discardPile.onclick=canDraw&&s.discardTop?()=>send({action:"draw",source:"discard"}):null;if(s.lastDraw?.at&&state.lastDrawAt!==s.lastDraw.at){state.lastDrawAt=s.lastDraw.at;showDrawChoice(s.lastDraw);}}
     function orderedHand(hand){const ids=new Set(hand.map(card=>card.id));state.handOrder=state.handOrder.filter(id=>ids.has(id));for(const card of hand)if(!state.handOrder.includes(card.id))state.handOrder.push(card.id);localStorage.setItem(HAND_ORDER_KEY,JSON.stringify(state.handOrder));const byId=new Map(hand.map(card=>[card.id,card]));return state.handOrder.map(id=>byId.get(id)).filter(Boolean);}
     function compareHandCards(a,b,s){const suits=Object.keys(SUIT_SYMBOLS),aWild=isWild(a,s),bWild=isWild(b,s);if(aWild!==bWild)return aWild?1:-1;if(a.joker!==b.joker)return a.joker?1:-1;return (a.rank-b.rank)||(suits.indexOf(a.suit)-suits.indexOf(b.suit))||a.id.localeCompare(b.id);}
     function saveHandOrder(order){state.handOrder=order;localStorage.setItem(HAND_ORDER_KEY,JSON.stringify(order));}
@@ -329,7 +330,7 @@
     }
 
     function renderHistory(s){if(!s.roundHistory?.length){els.historyRows.innerHTML='<div class="round-detail">No rounds scored.</div>';return;}els.historyRows.innerHTML=s.roundHistory.map(item=>`<div class="history-row"><strong>R${item.round}</strong>${item.results.map(result=>`<span>+${result.points}<br><strong>${item.totals[result.seat]}</strong></span>`).join("")}</div>`).join("");els.historyRows.scrollTop=els.historyRows.scrollHeight;}
-    function renderChat(s){els.chatMessages.innerHTML=(s.chat||[]).map(message=>`<div class="chat-message"><b>${escapeHtml(message.name)}</b> ${escapeHtml(message.text)}</div>`).join("");els.chatMessages.scrollTop=els.chatMessages.scrollHeight;}
+    function showDrawChoice(draw){const pile=draw.source==="discard"?els.discardPile:els.stockPile;const label=`${PLAYER_NAMES[draw.seat]} chose the ${draw.source==="discard"?"discard":"draw"} pile`;pile.classList.remove("draw-choice");void pile.offsetWidth;pile.classList.add("draw-choice");const note=document.createElement("div");note.className="draw-choice-note";note.textContent=label;els.table.append(note);setTimeout(()=>note.remove(),1600);}
     function resultCards(result){const melds=(result.melds||[]).map((meld,index)=>`<div class="meld-block"><div class="meld-title">${meld.type==="book"?"Book":meld.type==="run"?"Run":"Wild meld"} ${index+1}</div><div class="mini-cards">${meld.cards.map(card=>miniCard(card)).join("")}</div></div>`).join("");const deadwood=result.deadwood?.length?`<div class="meld-block"><div class="meld-title">Unused cards</div><div class="mini-cards">${result.deadwood.map(card=>miniCard(card,true)).join("")}</div></div>`:'<div class="meld-block"><div class="meld-title">All cards matched</div></div>';return melds+deadwood;}
     function showRoundScore(s){const round=s.lastRound,winners=s.winnerSeats||[],winnerText=s.phase==="gameover"?winners.length===1?`${PLAYER_NAMES[winners[0]]} wins the game!`:`${winners.map(seat=>PLAYER_NAMES[seat]).join(" and ")} tie for the win!`:`${PLAYER_NAMES[round.outPlayer]} went out first.`;openModal(`<h2>${s.phase==="gameover"?"Game Complete":`Round ${round.round} Complete`}</h2><p class="modal-summary">${escapeHtml(winnerText)} ${rankLabel(round.wildRank)}s were wild.</p><div class="summary-grid">${round.results.map(result=>`<section class="summary-card"><h3>${escapeHtml(result.name)}</h3><div class="round-points">+${result.points}</div><div class="total-score">Total score: ${round.totals[result.seat]}</div>${resultCards(result)}</section>`).join("")}</div><div class="modal-actions">${s.phase==="gameover"?'<button class="btn primary" id="playAgainButton">Play Again</button>':`<button class="btn primary" id="nextRoundButton">Deal Round ${s.round+1}</button>`}</div>`);playSound(s.phase==="gameover"?"win":"score");if(s.phase==="gameover"){launchConfetti();document.getElementById("playAgainButton").onclick=()=>{state.lastRoundShown=0;closeModal();send({action:"newGame",firstHandThreeTurns:prefs.firstHandThreeTurns});};}else document.getElementById("nextRoundButton").onclick=()=>{closeModal();send({action:"nextRound"});};}
 
@@ -347,7 +348,6 @@
     async function heartbeat(){if(!state.token)return;try{await api("/api/heartbeat",{method:"POST",body:JSON.stringify({token:state.token})});}catch(error){}}
     function startPolling(){clearInterval(state.poll);clearInterval(state.heartbeat);state.poll=setInterval(poll,700);state.heartbeat=setInterval(heartbeat,3500);}
 
-    els.chatForm.addEventListener("submit",event=>{event.preventDefault();const text=els.chatInput.value.trim();if(!text)return;els.chatInput.value="";send({action:"chat",text});});
     els.backdrop.addEventListener("click",event=>{if(event.target===els.backdrop)closeModal();});
     document.getElementById("settingsButton").onclick=openSettings;document.getElementById("playerButton").onclick=choosePlayer;document.getElementById("newGameButton").onclick=()=>{if(!state.token)return choosePlayer();state.lastRoundShown=0;closeModal();send({action:"newGame",firstHandThreeTurns:prefs.firstHandThreeTurns});};
 
