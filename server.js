@@ -5,7 +5,7 @@ const crypto = require('crypto');
 
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
-const VERSION = '2.0.16';
+const VERSION = '2.0.17';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['stars', 'hearts', 'clubs', 'spades', 'diamonds'];
 const RANKS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -301,7 +301,7 @@ function drawCard(seat, source) {
   game.drawnCardId = card.id;
   game.lastDraw = { seat, source, at: Date.now() };
   game.turnStage = 'discard';
-  game.prompt = `${PLAYER_NAMES[seat]} chooses a discard.`;
+  game.prompt = `${PLAYER_NAMES[seat]} chose the ${source === 'discard' ? 'discard pile' : 'draw pile'}.`;
   return true;
 }
 

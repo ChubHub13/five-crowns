@@ -207,7 +207,8 @@
   <style>
     /* Compact table: keeps the whole game on typical tablets. */
     @media (min-width:701px) { .game-main { grid-template-rows:minmax(420px,1fr) 56px; } .table { min-height:420px; } .hand-zone { height:116px; } .player.south { bottom:105px; } }
-    .pile-card.draw-choice { animation:draw-choice .7s ease 2; outline:3px solid #ffe27b; outline-offset:4px; } .draw-choice-note { position:absolute;z-index:40;left:50%;top:24%;transform:translateX(-50%);padding:8px 12px;border-radius:999px;background:rgba(11,6,15,.9);border:1px solid var(--gold);color:#fff1b6;font-size:11px;font-weight:900;white-space:nowrap;animation:choice-note 1.6s ease forwards } @keyframes draw-choice{50%{transform:translateY(-17px) scale(1.08)}} @keyframes choice-note{0%,85%{opacity:1}100%{opacity:0;transform:translate(-50%,-10px)}}
+    .pile-card.draw-choice { animation:draw-choice .7s ease 2; outline:3px solid #ffe27b; outline-offset:4px; } .draw-flight{position:fixed!important;z-index:200;pointer-events:none;margin:0!important;transform-origin:center;box-shadow:0 8px 18px rgba(0,0,0,.45)} @keyframes draw-choice{50%{transform:translateY(-17px) scale(1.08)}}
+    @media (min-width:701px) { html,body{height:100%;overflow:hidden}.app{height:100vh;min-height:0;grid-template-rows:60px minmax(0,1fr)}.topbar{min-height:60px;padding-block:6px}.crown-mark{width:40px;height:40px;font-size:27px}.layout{height:100%;min-height:0;overflow:hidden;padding:6px}.sidebar{min-height:0;overflow:hidden}.history{display:none}.game-main{min-height:0;grid-template-rows:minmax(0,1fr) 52px;gap:6px}.table{min-height:0;height:100%;border-width:5px}.hand-zone{height:104px}.player.south{bottom:93px}.controls{min-height:52px;padding:5px}.controls .btn{min-height:34px}}
     @media (max-width:700px) { :root { --card-w:58px; --card-h:82px; } .layout { padding:5px; gap:5px; } .sidebar { grid-template-columns:1fr 1fr; gap:5px; } .round-panel,.scoreboard { padding:8px; } .game-main { grid-template-rows:370px 54px; gap:5px; } .table { min-height:370px; } .center-piles { gap:14px; top:42%; } .hand-zone { height:96px; } .hand { justify-content:flex-start; overflow-x:auto; padding:4px 2px; } .card { margin-left:-16px; } .player { min-width:102px; padding:5px 6px; } .player.south { bottom:82px; } .turn-note { top:64px; right:7px; max-width:calc(100% - 14px); } .sidebar-actions { grid-template-columns:1fr 1fr; } }
     @media (max-width:900px) and (orientation:landscape) { html,body { height:100%; overflow:hidden; } .topbar { min-height:52px; padding:6px 10px; } .crown-mark { width:38px;height:38px;font-size:25px; } .brand p { display:none; } .layout { grid-template-columns:170px minmax(0,1fr); padding:5px; } .sidebar { display:flex; } .history { display:none; } .game-main { grid-template-rows:minmax(320px,1fr) 48px; } .table { min-height:320px; } }
   </style>
@@ -217,7 +218,7 @@
     <header class="topbar">
       <div class="brand">
         <div class="crown-mark">♛</div>
-        <div><h1>FIVE CROWNS <span class="version">v2.0.16</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
+        <div><h1>FIVE CROWNS <span class="version">v2.0.17</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
       </div>
       <div class="top-actions"><button class="btn small" id="settingsButton">Settings</button></div>
     </header>
@@ -257,7 +258,7 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    const APP_VERSION="2.0.16";
+    const APP_VERSION="2.0.17";
     const PLAYER_NAMES=["Daryl","Cristi","Cindy"];
     const SUIT_SYMBOLS={stars:"★",hearts:"♥",clubs:"♣",spades:"♠",diamonds:"♦"};
     const SESSION_KEY="threeHandedFiveCrownsSession";
@@ -282,7 +283,7 @@
     function cardHtml(card,extra=""){if(!card)return '<div class="empty-discard">Empty</div>';const wild=isWild(card),symbol=card.joker?"♛":SUIT_SYMBOLS[card.suit],rank=card.joker?"J":rankLabel(card.rank);return `<div class="card ${card.joker?"joker":card.suit} ${wild?"wild":""} ${extra}" aria-label="${escapeHtml(cardLabel(card))}">${wild?'<span class="wild-flag">WILD</span>':""}<div class="corner">${rank}<span>${symbol}</span></div><div class="card-center">${card.joker?'<div><div class="joker-crown">♛</div><div class="joker-word">JOKER</div></div>':`<div><div class="big-rank">${rank}</div><div class="big-suit">${symbol}</div></div>`}</div><div class="corner bottom">${rank}<span>${symbol}</span></div></div>`;}
     function miniCard(card,dead=false){return `<span class="mini-card ${dead?"dead":""}">${card.joker?"♛ Joker":`${rankLabel(card.rank)}${SUIT_SYMBOLS[card.suit]}`}</span>`;}
     function showToast(message){els.toast.textContent=message;els.toast.classList.add("show");clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>els.toast.classList.remove("show"),1900);}
-    function openModal(html){els.modal.className="modal";els.modal.innerHTML=html;els.backdrop.classList.add("open");}
+    function openModal(html){els.modal.className="modal";els.modal.dataset.roundScore=/nextRoundButton|playAgainButton/.test(html)?"true":"";els.modal.innerHTML=html;els.backdrop.classList.add("open");}
     function closeModal(){els.backdrop.classList.remove("open");els.modal.innerHTML="";}
 
     async function api(path,options={}){const response=await fetch(API+path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});const data=await response.json();if(!response.ok||data.ok===false)throw new Error(data.message||"Request failed");return data;}
@@ -293,7 +294,7 @@
       if(!s.lastRound&&s.round<=state.lastRoundShown)state.lastRoundShown=0;
       if(s.outPlayer===null)state.lastOutPlayer=null;
       else if(state.lastOutPlayer!==s.outPlayer){state.lastOutPlayer=s.outPlayer;announceWentOut(s);}
-      els.roundValue.textContent=s.round?`${s.round} of ${s.finalRound}`:"Waiting";
+      if(s.phase==="playing"&&els.modal.dataset.roundScore==="true")closeModal();els.roundValue.textContent=s.round?`${s.round} of ${s.finalRound}`:"Waiting";
       els.roundDetail.textContent=s.round?`${s.cardsPerPlayer} cards each`:"3 cards begin the game";
       els.wildBanner.hidden=!s.wildRank;els.wildRank.textContent=s.wildRank?rankLabel(s.wildRank):"";
       els.turnNote.textContent=s.prompt||"Five Crowns";
@@ -330,7 +331,7 @@
     }
 
     function renderHistory(s){if(!s.roundHistory?.length){els.historyRows.innerHTML='<div class="round-detail">No rounds scored.</div>';return;}els.historyRows.innerHTML=s.roundHistory.map(item=>`<div class="history-row"><strong>R${item.round}</strong>${item.results.map(result=>`<span>+${result.points}<br><strong>${item.totals[result.seat]}</strong></span>`).join("")}</div>`).join("");els.historyRows.scrollTop=els.historyRows.scrollHeight;}
-    function showDrawChoice(draw){const pile=draw.source==="discard"?els.discardPile:els.stockPile;const label=`${PLAYER_NAMES[draw.seat]} chose the ${draw.source==="discard"?"discard":"draw"} pile`;pile.classList.remove("draw-choice");void pile.offsetWidth;pile.classList.add("draw-choice");const note=document.createElement("div");note.className="draw-choice-note";note.textContent=label;els.table.append(note);setTimeout(()=>note.remove(),1600);}
+    function showDrawChoice(draw){const pile=draw.source==="discard"?els.discardPile:els.stockPile,player=document.getElementById(`player${draw.seat}`);pile.classList.remove("draw-choice");void pile.offsetWidth;pile.classList.add("draw-choice");if(!player)return;const start=pile.getBoundingClientRect(),end=player.getBoundingClientRect(),card=(pile.querySelector(".card,.card-back")?.cloneNode(true)||document.createElement("div"));card.className="draw-flight";card.style.left=`${start.left}px`;card.style.top=`${start.top}px`;card.style.width=`${start.width}px`;card.style.height=`${start.height}px`;document.body.append(card);const x=end.left+end.width/2-start.left-start.width/2,y=end.top+end.height/2-start.top-start.height/2;card.animate([{transform:"translate(0,0) scale(1)",opacity:1},{transform:`translate(${x}px,${y}px) scale(.45)`,opacity:.35}],{duration:650,easing:"cubic-bezier(.2,.8,.2,1)",fill:"forwards"}).finished.catch(()=>{}).finally(()=>card.remove());}
     function resultCards(result){const melds=(result.melds||[]).map((meld,index)=>`<div class="meld-block"><div class="meld-title">${meld.type==="book"?"Book":meld.type==="run"?"Run":"Wild meld"} ${index+1}</div><div class="mini-cards">${meld.cards.map(card=>miniCard(card)).join("")}</div></div>`).join("");const deadwood=result.deadwood?.length?`<div class="meld-block"><div class="meld-title">Unused cards</div><div class="mini-cards">${result.deadwood.map(card=>miniCard(card,true)).join("")}</div></div>`:'<div class="meld-block"><div class="meld-title">All cards matched</div></div>';return melds+deadwood;}
     function showRoundScore(s){const round=s.lastRound,winners=s.winnerSeats||[],winnerText=s.phase==="gameover"?winners.length===1?`${PLAYER_NAMES[winners[0]]} wins the game!`:`${winners.map(seat=>PLAYER_NAMES[seat]).join(" and ")} tie for the win!`:`${PLAYER_NAMES[round.outPlayer]} went out first.`;openModal(`<h2>${s.phase==="gameover"?"Game Complete":`Round ${round.round} Complete`}</h2><p class="modal-summary">${escapeHtml(winnerText)} ${rankLabel(round.wildRank)}s were wild.</p><div class="summary-grid">${round.results.map(result=>`<section class="summary-card"><h3>${escapeHtml(result.name)}</h3><div class="round-points">+${result.points}</div><div class="total-score">Total score: ${round.totals[result.seat]}</div>${resultCards(result)}</section>`).join("")}</div><div class="modal-actions">${s.phase==="gameover"?'<button class="btn primary" id="playAgainButton">Play Again</button>':`<button class="btn primary" id="nextRoundButton">Deal Round ${s.round+1}</button>`}</div>`);playSound(s.phase==="gameover"?"win":"score");if(s.phase==="gameover"){launchConfetti();document.getElementById("playAgainButton").onclick=()=>{state.lastRoundShown=0;closeModal();send({action:"newGame",firstHandThreeTurns:prefs.firstHandThreeTurns});};}else document.getElementById("nextRoundButton").onclick=()=>{closeModal();send({action:"nextRound"});};}
 
