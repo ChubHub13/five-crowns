@@ -214,11 +214,11 @@
     @media (max-width:900px) and (orientation:landscape) { html,body { height:100%; overflow:hidden; } .topbar { min-height:52px; padding:6px 10px; } .crown-mark { width:38px;height:38px;font-size:25px; } .brand p { display:none; } .layout { grid-template-columns:170px minmax(0,1fr); padding:5px; } .sidebar { display:flex; } .history { display:none; } .game-main { grid-template-rows:minmax(320px,1fr) 48px; } .table { min-height:320px; } }
   </style>
 <style>
-@media (min-width:701px) and (max-width:1100px) {
-  .sidebar-actions { grid-template-columns:1fr 1fr !important; }
-  .sidebar-actions #newGameButton { grid-column:auto !important; }
-  .sidebar-actions .controls { grid-template-columns:1fr 1fr !important; }
-}
+/* The action buttons are direct grid cells, never a second framed panel. */
+.sidebar-actions { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+.sidebar-actions #newGameButton { grid-column:auto !important; }
+.sidebar-actions .controls { display:contents !important; }
+.sidebar-actions .controls .btn { width:100%; min-width:0; }
 </style>
 </head>
 <body data-theme="classic" data-version="2.0.14">
@@ -226,7 +226,7 @@
     <header class="topbar">
       <div class="brand">
         <div class="crown-mark">♛</div>
-        <div><h1>FIVE CROWNS <span class="version">v2.0.22</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
+        <div><h1>FIVE CROWNS <span class="version">v2.0.23</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
       </div>
       <div class="top-actions"><button class="btn small" id="settingsButton">Settings</button></div>
     </header>
@@ -265,7 +265,7 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    const APP_VERSION="2.0.22";
+    const APP_VERSION="2.0.23";
     const PLAYER_NAMES=["Daryl","Cristi","Cindy"];
     const SUIT_SYMBOLS={stars:"★",hearts:"♥",clubs:"♣",spades:"♠",diamonds:"♦"};
     const SESSION_KEY="threeHandedFiveCrownsSession";
