@@ -217,16 +217,15 @@
 /* The action buttons are direct grid cells, never a second framed panel. */
 .sidebar-actions { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
 .sidebar-actions #newGameButton { grid-column:auto !important; }
-.sidebar-actions .controls { display:contents !important; }
-.sidebar-actions .controls .btn { width:100%; min-width:0; }
+.sidebar-actions #playerButton { font-size:13px; }
 </style>
 </head>
-<body data-theme="classic" data-version="2.0.14">
+<body data-theme="classic" data-version="2.0.24">
   <main class="app">
     <header class="topbar">
       <div class="brand">
         <div class="crown-mark">♛</div>
-        <div><h1>FIVE CROWNS <span class="version">v2.0.23</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
+        <div><h1>FIVE CROWNS <span class="version">v2.0.24</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
       </div>
       <div class="top-actions"><button class="btn small" id="settingsButton">Settings</button></div>
     </header>
@@ -239,7 +238,7 @@
         </section>
         <section class="panel scoreboard"><div class="panel-heading">Score · low wins</div><div id="scoreRows"></div></section>
         <section class="panel history"><div class="panel-heading">Round history</div><div id="historyRows"><div class="round-detail">No rounds scored.</div></div></section>
-        <div class="sidebar-actions"><button class="btn small" id="playerButton">Player</button><button class="btn danger" id="newGameButton">New Game</button><div class="controls" id="controls"></div></div>
+        <div class="sidebar-actions"><button class="btn small" id="playerButton">Player</button><button class="btn danger" id="newGameButton">New Game</button><div class="controls" id="controls" hidden></div></div>
       </aside>
 
       <section class="game-main">
@@ -265,7 +264,7 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    const APP_VERSION="2.0.23";
+    const APP_VERSION="2.0.24";
     const PLAYER_NAMES=["Daryl","Cristi","Cindy"];
     const SUIT_SYMBOLS={stars:"★",hearts:"♥",clubs:"♣",spades:"♠",diamonds:"♦"};
     const SESSION_KEY="threeHandedFiveCrownsSession";
@@ -330,7 +329,7 @@
     window.addEventListener("resize",positionHandPoints);
     function renderHand(s){els.hand.innerHTML="";const rawHand=s.hands?.[state.seat]||[],newRound=s.round&&state.autoSortRound!==s.round,newDraw=s.drawnCardId&&state.autoSortDrawnId!==s.drawnCardId;if(newRound){sortHandOrder(s,rawHand);state.autoSortRound=s.round;state.autoSortDrawnId=s.drawnCardId||null;}else if(newDraw){insertDrawnCardOrder(s,rawHand,s.drawnCardId);state.autoSortDrawnId=s.drawnCardId;}else if(!s.drawnCardId)state.autoSortDrawnId=null;const hand=orderedHand(rawHand),canDiscard=s.phase==="playing"&&s.turn===state.seat&&s.turnStage==="discard";els.handPoints.hidden=!hand.length||!Number.isFinite(s.handPoints);els.handPoints.textContent=Number.isFinite(s.handPoints)?`${s.handPoints} pts`:"";for(const card of hand){const button=document.createElement("button");button.type="button";button.draggable=false;button.dataset.cardId=card.id;button.className=`card ${card.joker?"joker":card.suit} ${isWild(card,s)?"wild":""}`;button.setAttribute("aria-label",cardLabel(card));button.setAttribute("aria-disabled",String(!canDiscard));button.innerHTML=cardHtml(card).replace(/^<div[^>]*>|<\/div>$/g,"");button.classList.toggle("inactive",!canDiscard);button.classList.toggle("selected",state.selectedCardId===card.id);button.classList.toggle("drawn",s.drawnCardId===card.id);button.classList.toggle("go-out-card",s.goOutDiscardIds?.includes(card.id));button.onclick=()=>{if(!canDiscard||Date.now()<state.suppressCardClickUntil)return;state.selectedCardId=state.selectedCardId===card.id?null:card.id;renderHand(s);renderControls(s);};button.onmousedown=event=>beginMouseDrag(event,card.id,button);els.hand.appendChild(button);}requestAnimationFrame(positionHandPoints);}
 
-    function renderControls(s){els.controls.innerHTML="";const add=(label,style,fn,disabled=false)=>{const button=document.createElement("button");button.className=`btn ${style}`.trim();button.textContent=label;button.disabled=disabled;button.onclick=fn;els.controls.appendChild(button);return button;};
+    function renderControls(s){els.controls.innerHTML="";return;const add=(label,style,fn,disabled=false)=>{const button=document.createElement("button");button.className=`btn ${style}`.trim();button.textContent=label;button.disabled=disabled;button.onclick=fn;els.controls.appendChild(button);return button;};
       if(s.phase==="waiting"){if(!state.token)add("Choose Player","primary",choosePlayer);else add("Start Five Crowns","primary",()=>send({action:"start",firstHandThreeTurns:prefs.firstHandThreeTurns}));return;}
       if(s.phase==="playing"&&s.turn===state.seat){if(s.turnStage==="draw"){add("Draw from Pile","primary",()=>send({action:"draw",source:"stock"}));add("Take Discard","",()=>send({action:"draw",source:"discard"}),!s.discardTop);return;}const selected=state.selectedCardId,canGoOut=selected&&s.goOutDiscardIds?.includes(selected);add("Discard","primary",()=>send({action:"discard",cardId:selected}),!selected);if(s.outPlayer===null)add("Go Out","success",()=>send({action:"discard",cardId:selected,goOut:true}),!canGoOut);return;}
       if(s.phase==="roundEnd"){add(`Deal Round ${s.round+1}`,"primary",()=>{closeModal();send({action:"nextRound"});});return;}
