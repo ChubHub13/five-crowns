@@ -213,13 +213,20 @@
     @media (max-width:700px) { :root { --card-w:58px; --card-h:82px; } .layout { padding:5px; gap:5px; } .sidebar { grid-template-columns:1fr 1fr; gap:5px; } .round-panel,.scoreboard { padding:8px; } .game-main { grid-template-rows:370px 54px; gap:5px; } .table { min-height:370px; } .center-piles { gap:14px; top:42%; } .hand-zone { height:96px; } .hand { justify-content:flex-start; overflow-x:auto; padding:4px 2px; } .card { margin-left:-16px; } .player { min-width:102px; padding:5px 6px; } .player.south { bottom:82px; } .turn-note { top:64px; right:7px; max-width:calc(100% - 14px); } .sidebar-actions { grid-template-columns:1fr 1fr; } }
     @media (max-width:900px) and (orientation:landscape) { html,body { height:100%; overflow:hidden; } .topbar { min-height:52px; padding:6px 10px; } .crown-mark { width:38px;height:38px;font-size:25px; } .brand p { display:none; } .layout { grid-template-columns:170px minmax(0,1fr); padding:5px; } .sidebar { display:flex; } .history { display:none; } .game-main { grid-template-rows:minmax(320px,1fr) 48px; } .table { min-height:320px; } }
   </style>
+<style>
+@media (min-width:701px) and (max-width:1100px) {
+  .sidebar-actions { grid-template-columns:1fr 1fr !important; }
+  .sidebar-actions #newGameButton { grid-column:auto !important; }
+  .sidebar-actions .controls { grid-template-columns:1fr 1fr !important; }
+}
+</style>
 </head>
 <body data-theme="classic" data-version="2.0.14">
   <main class="app">
     <header class="topbar">
       <div class="brand">
         <div class="crown-mark">♛</div>
-        <div><h1>FIVE CROWNS <span class="version">v2.0.21</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
+        <div><h1>FIVE CROWNS <span class="version">v2.0.22</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
       </div>
       <div class="top-actions"><button class="btn small" id="settingsButton">Settings</button></div>
     </header>
@@ -232,7 +239,7 @@
         </section>
         <section class="panel scoreboard"><div class="panel-heading">Score · low wins</div><div id="scoreRows"></div></section>
         <section class="panel history"><div class="panel-heading">Round history</div><div id="historyRows"><div class="round-detail">No rounds scored.</div></div></section>
-        <div class="sidebar-actions"><button class="btn small" id="playerButton">Player</button><button class="btn danger" id="newGameButton">New Game</button></div>
+        <div class="sidebar-actions"><button class="btn small" id="playerButton">Player</button><button class="btn danger" id="newGameButton">New Game</button><div class="controls" id="controls"></div></div>
       </aside>
 
       <section class="game-main">
@@ -250,7 +257,6 @@
 
           <div class="hand-zone"><div class="hand" id="humanHand"></div><div class="hand-points" id="handPoints" hidden></div></div>
         </div>
-        <div class="controls" id="controls"></div>
       </section>
     </div>
   </main>
@@ -259,7 +265,7 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    const APP_VERSION="2.0.21";
+    const APP_VERSION="2.0.22";
     const PLAYER_NAMES=["Daryl","Cristi","Cindy"];
     const SUIT_SYMBOLS={stars:"★",hearts:"♥",clubs:"♣",spades:"♠",diamonds:"♦"};
     const SESSION_KEY="threeHandedFiveCrownsSession";
@@ -276,7 +282,6 @@
       table:document.getElementById("table"),turnNote:document.getElementById("turnNote"),roundEvent:document.getElementById("roundEvent"),stockPile:document.getElementById("stockPile"),stockCount:document.getElementById("stockCount"),discardPile:document.getElementById("discardPile"),hand:document.getElementById("humanHand"),handPoints:document.getElementById("handPoints"),controls:document.getElementById("controls"),
       backdrop:document.getElementById("backdrop"),modal:document.getElementById("modal"),toast:document.getElementById("toast")
     };
-    document.querySelector(".sidebar-actions")?.append(els.controls);
 
     function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));}
     function rankLabel(rank){return rank===11?"J":rank===12?"Q":rank===13?"K":String(rank);}
