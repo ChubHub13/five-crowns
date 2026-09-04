@@ -207,7 +207,7 @@
   <style>
     /* Compact table: keeps the whole game on typical tablets. */
     @media (min-width:701px) { .game-main { grid-template-rows:minmax(420px,1fr) 56px; } .table { min-height:420px; } .hand-zone { height:116px; } .player.south { bottom:105px; } }
-    .pile-card.draw-choice { animation:draw-choice .7s ease 2; outline:3px solid #ffe27b; outline-offset:4px; } .draw-flight{position:fixed!important;z-index:200;pointer-events:none;margin:0!important;transform-origin:center;box-shadow:0 8px 18px rgba(0,0,0,.45)} .go-out-action{position:absolute;z-index:12;left:0;top:0;min-height:26px;padding:4px 8px;border:1px solid #8aefbb;border-radius:8px;color:#062116;background:linear-gradient(#81e8af,#3eae72);font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap}.go-out-action:disabled{opacity:.35;cursor:not-allowed}@keyframes draw-choice{50%{transform:translateY(-17px) scale(1.08)}}
+    .pile-card.draw-choice { animation:draw-choice .7s ease 2; outline:3px solid #ffe27b; outline-offset:4px; } .draw-flight{position:fixed!important;z-index:200;pointer-events:none;margin:0!important;transform-origin:center;box-shadow:0 8px 18px rgba(0,0,0,.45)} .go-out-action{position:absolute;z-index:12;left:0;top:0;min-height:26px;padding:4px 8px;border:1px solid #8aefbb;border-radius:8px;color:#062116;background:linear-gradient(#81e8af,#3eae72);font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap}.go-out-action:disabled{opacity:.35;cursor:not-allowed}.first-hand-notice{grid-column:1/-1;padding:7px 8px;border:1px solid rgba(243,197,90,.38);border-radius:8px;color:#ffe7a4;background:rgba(106,58,19,.28);font-size:9px;font-weight:800;line-height:1.35;text-align:center}.first-hand-notice strong{display:block;color:var(--gold);font-size:10px;text-transform:uppercase;letter-spacing:.06em}@keyframes draw-choice{50%{transform:translateY(-17px) scale(1.08)}}
     @media (min-width:701px) { html,body{height:100%;overflow:hidden}.app{height:100vh;min-height:0;grid-template-rows:60px minmax(0,1fr)}.topbar{min-height:60px;padding-block:6px}.crown-mark{width:40px;height:40px;font-size:27px}.layout{height:100%;min-height:0;overflow:hidden;padding:6px}.sidebar{min-height:0;overflow:hidden}.history{display:none}.game-main{min-height:0;grid-template-rows:minmax(0,1fr) 52px;gap:6px}.table{min-height:0;height:100%;border-width:5px}.hand-zone{height:104px}.player.south{bottom:93px}.controls{min-height:52px;padding:5px}.controls .btn{min-height:34px}}
     @media (min-width:701px) and (max-width:1100px) { .app{grid-template-rows:50px minmax(0,1fr)}.topbar{min-height:50px;padding-block:4px}.brand h1{font-size:23px}.crown-mark{width:34px;height:34px;font-size:23px}.brand p{display:none}.layout{padding:3px;gap:4px}.game-main{grid-template-rows:clamp(250px,calc(100dvh - 260px),300px);gap:0;align-content:start}.table{height:clamp(250px,calc(100dvh - 260px),300px);min-height:0}.controls{min-height:40px;padding:3px}.controls .btn{min-height:30px;min-width:105px;padding:5px 9px}.hand-zone{height:82px}.hand{padding:2px 4px}.player{padding:4px 6px;min-width:96px}.player.north{top:6px}.player.west{top:25%;left:6px}.player.south{bottom:70px;left:6px}.center-piles{top:41%;gap:14px}.pile-wrap{width:76px}.pile-card{transform:scale(.82)}.pile-label{margin-top:-4px;font-size:8px}.turn-note{top:6px;right:6px;padding:5px 8px;font-size:9px}.sidebar{gap:4px;overflow:visible}.round-panel,.scoreboard{padding:7px}.round-value{font-size:21px}.score-row{min-height:28px;padding:3px 5px}.score-number{font-size:16px}.sidebar-actions{overflow:visible;grid-template-columns:1fr}.sidebar-actions .controls{grid-column:1/-1;display:grid;grid-template-columns:1fr;gap:4px;min-height:0;border:0;border-radius:0;background:none;overflow:visible}.sidebar-actions .controls .btn{width:100%;min-width:0}.sidebar-actions .controls .btn:only-child{grid-column:1/-1} }
     @media (max-width:700px) { :root { --card-w:58px; --card-h:82px; } .layout { padding:5px; gap:5px; } .sidebar { grid-template-columns:1fr 1fr; gap:5px; } .round-panel,.scoreboard { padding:8px; } .game-main { grid-template-rows:370px 54px; gap:5px; } .table { min-height:370px; } .center-piles { gap:14px; top:42%; } .hand-zone { height:96px; } .hand { justify-content:flex-start; overflow-x:auto; padding:4px 2px; } .card { margin-left:-16px; } .player { min-width:102px; padding:5px 6px; } .player.south { bottom:82px; } .turn-note { top:64px; right:7px; max-width:calc(100% - 14px); } .sidebar-actions { grid-template-columns:1fr 1fr; } }
@@ -220,12 +220,12 @@
 .sidebar-actions #playerButton { font-size:13px; }
 </style>
 </head>
-<body data-theme="classic" data-version="2.1.0">
+<body data-theme="classic" data-version="2.1.1">
   <main class="app">
     <header class="topbar">
       <div class="brand">
         <div class="crown-mark">♛</div>
-        <div><h1>FIVE CROWNS <span class="version">v2.1.0</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
+        <div><h1>FIVE CROWNS <span class="version">v2.1.1</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
       </div>
       <div class="top-actions"><button class="btn small" id="settingsButton">Settings</button></div>
     </header>
@@ -238,7 +238,7 @@
         </section>
         <section class="panel scoreboard"><div class="panel-heading">Score · low wins</div><div id="scoreRows"></div></section>
         <section class="panel history"><div class="panel-heading">Round history</div><div id="historyRows"><div class="round-detail">No rounds scored.</div></div></section>
-        <div class="sidebar-actions"><button class="btn small" id="playerButton">Player</button><button class="btn danger" id="newGameButton">New Game</button><div class="controls" id="controls" hidden></div></div>
+        <div class="sidebar-actions"><button class="btn small" id="playerButton">Player</button><button class="btn danger" id="newGameButton">Start Game</button><div class="controls" id="controls" hidden></div><div class="first-hand-notice" id="firstHandNotice" hidden></div></div>
       </aside>
 
       <section class="game-main">
@@ -264,7 +264,7 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    const APP_VERSION="2.1.0";
+    const APP_VERSION="2.1.1";
     const PLAYER_NAMES=["Daryl","Cristi","Cindy"];
     const SUIT_SYMBOLS={stars:"★",hearts:"♥",clubs:"♣",spades:"♠",diamonds:"♦"};
     const SESSION_KEY="threeHandedFiveCrownsSession";
@@ -278,7 +278,7 @@
     const els={
       roundValue:document.getElementById("roundValue"),roundDetail:document.getElementById("roundDetail"),wildBanner:document.getElementById("wildBanner"),wildRank:document.getElementById("wildRank"),
       scoreRows:document.getElementById("scoreRows"),historyRows:document.getElementById("historyRows"),
-      table:document.getElementById("table"),turnNote:document.getElementById("turnNote"),roundEvent:document.getElementById("roundEvent"),stockPile:document.getElementById("stockPile"),stockCount:document.getElementById("stockCount"),discardPile:document.getElementById("discardPile"),hand:document.getElementById("humanHand"),handPoints:document.getElementById("handPoints"),controls:document.getElementById("controls"),
+      table:document.getElementById("table"),turnNote:document.getElementById("turnNote"),roundEvent:document.getElementById("roundEvent"),stockPile:document.getElementById("stockPile"),stockCount:document.getElementById("stockCount"),discardPile:document.getElementById("discardPile"),hand:document.getElementById("humanHand"),handPoints:document.getElementById("handPoints"),controls:document.getElementById("controls"),firstHandNotice:document.getElementById("firstHandNotice"),
       backdrop:document.getElementById("backdrop"),modal:document.getElementById("modal"),toast:document.getElementById("toast")
     };
 
@@ -300,7 +300,7 @@
       if(!s.lastRound&&s.round<=state.lastRoundShown)state.lastRoundShown=0;
       if(s.outPlayer===null)state.lastOutPlayer=null;
       else if(state.lastOutPlayer!==s.outPlayer){state.lastOutPlayer=s.outPlayer;announceWentOut(s);}
-      if(s.phase==="playing"&&els.modal.dataset.roundScore==="true")closeModal();els.roundValue.textContent=s.round?`${s.round} of ${s.finalRound}`:"Waiting";
+      if(s.phase==="playing"&&els.modal.dataset.roundScore==="true")closeModal();document.getElementById("newGameButton").textContent=s.phase==="waiting"?"Start Game":"New Game";const firstHandLock=s.phase==="playing"&&s.round===1&&s.firstHandThreeTurns&&!(s.completedTurns||[]).every(turns=>turns>=3);els.firstHandNotice.hidden=!firstHandLock;if(firstHandLock){const turns=s.completedTurns||[0,0,0];els.firstHandNotice.innerHTML=`<strong>First-hand house rule</strong>Everyone gets 3 turns before anyone can go out.<br>${PLAYER_NAMES.map((name,seat)=>`${name} ${Math.min(3,turns[seat]||0)}/3`).join(" · ")}`;}els.roundValue.textContent=s.round?`${s.round} of ${s.finalRound}`:"Waiting";
       els.roundDetail.textContent=s.round?`${s.cardsPerPlayer} cards each`:"3 cards begin the game";
       els.wildBanner.hidden=!s.wildRank;els.wildRank.textContent=s.wildRank?rankLabel(s.wildRank):"";
       els.turnNote.textContent=s.prompt||"Five Crowns";
