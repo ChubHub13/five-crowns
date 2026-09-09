@@ -5,7 +5,7 @@ const crypto = require('crypto');
 
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
-const VERSION = '2.1.4';
+const VERSION = '2.1.5';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['stars', 'hearts', 'clubs', 'spades', 'diamonds'];
 const RANKS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -428,8 +428,18 @@ function botDiscard(seat) {
     scheduleBot();
     return;
   }
-  const declareOut = game.outPlayer === null && choice.analysis.penalty === 0;
-  discardCard(seat, choice.card.id, declareOut);
+  // A perfect hand during the first-hand three-turn rule still has to discard
+  // normally.  Previously the bot tried to go out, the server correctly
+  // rejected that move, and its turn never advanced.
+  const declareOut = game.outPlayer === null
+    && mayGoOutAfterThisTurn(seat)
+    && choice.analysis.penalty === 0;
+  if (!discardCard(seat, choice.card.id, declareOut)) {
+    // Keep the table moving if a bot decision became stale between its draw
+    // and discard timer.
+    const fallback = game.hands[seat].at(-1);
+    if (fallback) discardCard(seat, fallback.id, false);
+  }
 }
 
 function scheduleBot() {
