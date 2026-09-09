@@ -368,18 +368,20 @@
   <script>
   (() => {
     const params = new URLSearchParams(location.search);
-    const gameNight = params.get("gameNight");
-    if (!gameNight) return;
+    const hashParams = new URLSearchParams(location.hash.replace(/^#\??/, ""));
+    const gameNight = params.get("gameNight") || hashParams.get("gameNight") || "https://judd-game-night.onrender.com/";
+    if (document.getElementById("gameNightReturn")) return;
     const style = document.createElement("style");
     style.textContent = "#gameNightReturn{position:fixed;right:14px;bottom:14px;z-index:9999;min-height:38px;padding:8px 12px;border:1px solid rgba(255,255,255,.32);border-radius:999px;color:#fff4d0;background:rgba(13,8,18,.88);box-shadow:0 4px 18px rgba(0,0,0,.35);font:800 12px/1 Inter,Segoe UI,Arial,sans-serif;cursor:pointer}#gameNightReturn:hover{filter:brightness(1.18)}@media(max-width:700px){#gameNightReturn{right:8px;bottom:8px;min-height:32px;padding:6px 9px;font-size:10px}}";
     document.head.append(style);
     const button = document.createElement("button");
     button.id = "gameNightReturn";
     button.type = "button";
+    button.style.zIndex = "10000";
     button.textContent = "← Game Night";
     button.onclick = () => location.assign(gameNight);
     document.body.append(button);
-    if (params.get("gameNightNew") === "1") window.setTimeout(() => document.getElementById("newGameButton")?.click(), 800);
+    if ((params.get("gameNightNew") || hashParams.get("gameNightNew")) === "1") window.setTimeout(() => document.getElementById("newGameButton")?.click(), 800);
   })();
   </script>
 <script src="five-crowns-draw-animation.js"></script>
