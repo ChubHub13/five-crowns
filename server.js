@@ -5,7 +5,7 @@ const crypto = require('crypto');
 
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
-const VERSION = '2.1.3';
+const VERSION = '2.1.4';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['stars', 'hearts', 'clubs', 'spades', 'diamonds'];
 const RANKS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -307,7 +307,11 @@ function drawCard(seat, source) {
 
 function mayGoOutAfterThisTurn(seat) {
   if (!game.firstHandThreeTurns || game.round !== 1) return true;
-  return game.completedTurns.every((turns, player) => player === seat ? turns >= 2 : turns >= 3);
+  // A completed third turn is not enough on its own: every player must have
+  // already completed three full turns before anyone may go out.  Allowing the
+  // final third-turn player to go out caused the first-hand bot state to get
+  // stranded at the handoff on some turn orders.
+  return game.completedTurns.every(turns => turns >= 3);
 }
 
 function goOutDiscardIds(seat) {
@@ -409,8 +413,21 @@ function botDraw(seat) {
 
 function botDiscard(seat) {
   if (game.phase !== 'playing' || game.turn !== seat || game.turnStage !== 'discard') return;
-  const choice = bestDiscard(game.hands[seat], wildRank());
-  if (!choice) return;
+  let choice = bestDiscard(game.hands[seat], wildRank());
+  // A bot should always be able to discard after drawing.  If hand analysis
+  // cannot produce a candidate, use the last card as a safe fallback rather
+  // than leaving the game permanently on the bot's third first-hand turn.
+  if (!choice && game.hands[seat].length) {
+    const card = game.hands[seat].at(-1);
+    choice = { card, analysis: analyzeHand(game.hands[seat].filter(item => item.id !== card.id), wildRank()) };
+  }
+  if (!choice) {
+    game.turn = (seat + 1) % 3;
+    game.turnStage = 'draw';
+    game.prompt = `${PLAYER_NAMES[game.turn]}'s turn to draw.`;
+    scheduleBot();
+    return;
+  }
   const declareOut = game.outPlayer === null && choice.analysis.penalty === 0;
   discardCard(seat, choice.card.id, declareOut);
 }

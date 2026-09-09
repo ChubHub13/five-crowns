@@ -83,7 +83,8 @@
     .player.north { top:13px; left:50%; transform:translateX(-50%); }
     .player.west { left:13px; top:34%; }
     .player.south { left:13px; bottom:122px; }
-    .avatar { width:35px; height:35px; display:grid; place-items:center; border-radius:50%; color:#27112f; background:linear-gradient(#ffe29a,#c88d28); font:900 15px Georgia,serif; }
+    /* Matches the portrait treatment used at the Qwixx table. */
+    .avatar { width:39px; height:39px; display:block; flex:0 0 auto; border-radius:50%; object-fit:cover; border:2px solid #deb44e; background:#deb44e; }
     .player-name { font-weight:900; font-size:12px; }
     .player-detail { color:var(--muted); font-size:9px; }
     .player-badges { grid-column:1/-1; display:flex; gap:4px; margin-top:-3px; }
@@ -225,7 +226,7 @@
     <header class="topbar">
       <div class="brand">
         <div class="crown-mark">♛</div>
-        <div><h1>FIVE CROWNS <span class="version">v2.1.3</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
+        <div><h1>FIVE CROWNS <span class="version">v2.1.4</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
       </div>
       <div class="top-actions"><button class="btn small" id="settingsButton">Settings</button></div>
     </header>
@@ -245,9 +246,9 @@
         <div class="table" id="table">
           <div class="turn-note" id="turnNote">Choose a player to begin.</div>
           <div class="round-event" id="roundEvent" hidden></div>
-          <div class="player north" id="player2"><div class="avatar">C</div><div><div class="player-name">Cindy</div><div class="player-detail" id="detail2">Waiting</div></div><div class="player-badges" id="badges2"></div></div>
-          <div class="player west" id="player1"><div class="avatar">C</div><div><div class="player-name">Cristi</div><div class="player-detail" id="detail1">Waiting</div></div><div class="player-badges" id="badges1"></div></div>
-          <div class="player south" id="player0"><div class="avatar">D</div><div><div class="player-name">Daryl</div><div class="player-detail" id="detail0">Waiting</div></div><div class="player-badges" id="badges0"></div></div>
+          <div class="player north" id="player2"><img class="avatar" src="/cindy-avatar.png" alt="Cindy"><div><div class="player-name">Cindy</div><div class="player-detail" id="detail2">Waiting</div></div><div class="player-badges" id="badges2"></div></div>
+          <div class="player west" id="player1"><img class="avatar" src="/cristi-avatar.png" alt="Cristi"><div><div class="player-name">Cristi</div><div class="player-detail" id="detail1">Waiting</div></div><div class="player-badges" id="badges1"></div></div>
+          <div class="player south" id="player0"><img class="avatar" src="/daryl-avatar.png" alt="Daryl"><div><div class="player-name">Daryl</div><div class="player-detail" id="detail0">Waiting</div></div><div class="player-badges" id="badges0"></div></div>
 
           <div class="center-piles">
             <div class="pile-wrap"><button class="pile-card" id="stockPile" aria-label="Draw from stock"><div class="card-back">♛</div><span class="stock-count" id="stockCount">0</span></button><div class="pile-label">Draw pile</div></div>
@@ -264,7 +265,7 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    const APP_VERSION="2.1.3";
+    const APP_VERSION="2.1.4";
     const PLAYER_NAMES=["Daryl","Cristi","Cindy"];
     const SUIT_SYMBOLS={stars:"★",hearts:"♥",clubs:"♣",spades:"♠",diamonds:"♦"};
     const SESSION_KEY="threeHandedFiveCrownsSession";
