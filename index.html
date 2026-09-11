@@ -150,11 +150,11 @@
     .modal h2 { margin:0 0 8px; color:#ffe29a; font:700 28px/1.1 Georgia,serif; text-align:center; }
     .modal-summary { margin:0 0 12px; color:var(--muted); font-size:12px; text-align:center; line-height:1.5; }
     .join-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:14px; }
-    .join-choice { min-height:78px; border:1px solid var(--line); border-radius:13px; color:#ffe29a; background:rgba(93,38,111,.46); font:800 20px Georgia,serif; cursor:pointer; }
-    .join-seat { display:grid; grid-template-columns:minmax(0,1fr) 29px; gap:5px; align-items:stretch; }
+    .join-choice { min-height:78px; width:100%; padding:8px 38px 8px 12px; border:1px solid var(--line); border-radius:13px; color:#ffe29a; background:rgba(93,38,111,.46); font:800 20px Georgia,serif; text-align:center; cursor:pointer; }
+    .join-seat { position:relative; display:block; min-width:0; }
     .join-seat .join-choice { min-width:0; }
-    .join-name-edit { border:1px solid var(--line); border-radius:10px; color:#ffe29a; background:rgba(93,38,111,.46); font:900 16px/1 system-ui,sans-serif; cursor:pointer; }
-    .join-name-edit:hover { background:rgba(144,71,161,.72); }
+    .join-name-edit { position:absolute; top:50%; right:8px; display:grid; place-items:center; width:25px; height:25px; margin:0; padding:0; transform:translateY(-50%); border:0; border-radius:6px; color:#ffe29a; background:transparent; font:900 16px/1 system-ui,sans-serif; cursor:pointer; }
+    .join-name-edit:hover { background:rgba(255,226,154,.16); }
     .avatar.guest-avatar { font-size:21px; }
     .name-edit { display:inline-grid; place-items:center; width:17px; height:17px; margin-left:3px; padding:0; border:0; border-radius:50%; color:#ffe29a; background:rgba(255,255,255,.13); font:900 12px/1 system-ui,sans-serif; vertical-align:1px; cursor:pointer; }
     .name-edit:hover { background:rgba(255,226,154,.3); }
@@ -227,12 +227,12 @@
 .sidebar-actions #playerButton { font-size:13px; }
 </style>
 </head>
-<body data-theme="classic" data-version="2.1.9">
+<body data-theme="classic" data-version="2.1.10">
   <main class="app">
     <header class="topbar">
       <div class="brand">
         <div class="crown-mark">♛</div>
-        <div><h1>FIVE CROWNS <span class="version">v2.1.9</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
+        <div><h1>FIVE CROWNS <span class="version">v2.1.10</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
       </div>
       <div class="top-actions"><button class="btn small" id="settingsButton">Settings</button></div>
     </header>
@@ -271,7 +271,7 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    const APP_VERSION="2.1.9";
+    const APP_VERSION="2.1.10";
     const PLAYER_NAMES=["Daryl","Cristi","Cindy"];
     const SUIT_SYMBOLS={stars:"★",hearts:"♥",clubs:"♣",spades:"♠",diamonds:"♦"};
     const SESSION_KEY="threeHandedFiveCrownsSession";
