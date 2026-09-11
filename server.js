@@ -39,9 +39,19 @@ const game = {
   live: [false, false, false],
   bot: [true, true, true],
   lastSeen: [0, 0, 0],
+  seatNames: [...PLAYER_NAMES],
   chat: [],
   prompt: 'Choose Daryl, Cristi, or Cindy to begin.'
 };
+
+function playerName(seat) {
+  return game.seatNames?.[seat] || PLAYER_NAMES[seat] || 'Player';
+}
+
+function cleanDisplayName(value) {
+  const name = String(value || '').replace(/\s+/g, ' ').trim().slice(0, 20);
+  return name || null;
+}
 
 function randomToken() {
   return crypto.randomBytes(20).toString('hex');
@@ -230,7 +240,7 @@ function dealRound() {
   game.winnerSeats = [];
   game.completedTurns = [0, 0, 0];
   game.phase = 'playing';
-  game.prompt = `${PLAYER_NAMES[game.turn]} draws first. ${rankLabel(wildRank())}s are wild.`;
+  game.prompt = `${playerName(game.turn)} draws first. ${rankLabel(wildRank())}s are wild.`;
   scheduleBot();
   return true;
 }
@@ -301,17 +311,13 @@ function drawCard(seat, source) {
   game.drawnCardId = card.id;
   game.lastDraw = { seat, source, at: Date.now() };
   game.turnStage = 'discard';
-  game.prompt = `${PLAYER_NAMES[seat]} chose the ${source === 'discard' ? 'discard pile' : 'draw pile'}.`;
+  game.prompt = `${playerName(seat)} chose the ${source === 'discard' ? 'discard pile' : 'draw pile'}.`;
   return true;
 }
 
 function mayGoOutAfterThisTurn(seat) {
   if (!game.firstHandThreeTurns || game.round !== 1) return true;
-  // A completed third turn is not enough on its own: every player must have
-  // already completed three full turns before anyone may go out.  Allowing the
-  // final third-turn player to go out caused the first-hand bot state to get
-  // stranded at the handoff on some turn orders.
-  return game.completedTurns.every(turns => turns >= 3);
+  return game.completedTurns.every((turns, player) => player === seat ? turns >= 2 : turns >= 3);
 }
 
 function goOutDiscardIds(seat) {
@@ -346,7 +352,7 @@ function discardCard(seat, cardId, declareOut = false) {
     game.hands[seat] = [];
     game.outPlayer = seat;
     game.finalTurns = [0, 1, 2].filter(player => player !== seat);
-    game.prompt = `${PLAYER_NAMES[seat]} went out. Everyone else gets one final turn.`;
+    game.prompt = `${playerName(seat)} went out. Everyone else gets one final turn.`;
   } else if (game.outPlayer !== null) {
     game.finalTurns = game.finalTurns.filter(player => player !== seat);
   }
@@ -359,8 +365,8 @@ function discardCard(seat, cardId, declareOut = false) {
   game.turn = game.outPlayer === null ? (seat + 1) % 3 : nextFinalPlayer(seat);
   game.turnStage = 'draw';
   game.prompt = game.outPlayer === null
-    ? `${PLAYER_NAMES[game.turn]}'s turn to draw.`
-    : `${PLAYER_NAMES[game.turn]} takes a final turn.`;
+    ? `${playerName(game.turn)}'s turn to draw.`
+    : `${playerName(game.turn)} takes a final turn.`;
   scheduleBot();
   return true;
 }
@@ -369,10 +375,10 @@ function scoreRound() {
   clearTimeout(botTimer);
   const results = [0, 1, 2].map(seat => {
     if (seat === game.outPlayer) {
-      return { seat, name: PLAYER_NAMES[seat], points: 0, melds: game.laidDown[seat], deadwood: [] };
+      return { seat, name: playerName(seat), points: 0, melds: game.laidDown[seat], deadwood: [] };
     }
     const analysis = analyzeHand(game.hands[seat], wildRank());
-    return { seat, name: PLAYER_NAMES[seat], points: analysis.penalty, melds: analysis.melds, deadwood: analysis.deadwood };
+    return { seat, name: playerName(seat), points: analysis.penalty, melds: analysis.melds, deadwood: analysis.deadwood };
   });
   for (const result of results) game.scores[result.seat] += result.points;
   game.lastRound = {
@@ -390,8 +396,8 @@ function scoreRound() {
     game.winnerSeats = game.scores.map((score, seat) => score === lowScore ? seat : -1).filter(seat => seat >= 0);
     game.phase = 'gameover';
     game.prompt = game.winnerSeats.length === 1
-      ? `${PLAYER_NAMES[game.winnerSeats[0]]} wins with ${lowScore} points.`
-      : `${game.winnerSeats.map(seat => PLAYER_NAMES[seat]).join(' and ')} tie with ${lowScore} points.`;
+      ? `${playerName(game.winnerSeats[0])} wins with ${lowScore} points.`
+      : `${game.winnerSeats.map(playerName).join(' and ')} tie with ${lowScore} points.`;
   } else {
     game.phase = 'roundEnd';
     game.prompt = `Round ${game.round} complete. ${rankLabel(wildRank(game.round + 1))}s are wild next.`;
@@ -413,33 +419,10 @@ function botDraw(seat) {
 
 function botDiscard(seat) {
   if (game.phase !== 'playing' || game.turn !== seat || game.turnStage !== 'discard') return;
-  let choice = bestDiscard(game.hands[seat], wildRank());
-  // A bot should always be able to discard after drawing.  If hand analysis
-  // cannot produce a candidate, use the last card as a safe fallback rather
-  // than leaving the game permanently on the bot's third first-hand turn.
-  if (!choice && game.hands[seat].length) {
-    const card = game.hands[seat].at(-1);
-    choice = { card, analysis: analyzeHand(game.hands[seat].filter(item => item.id !== card.id), wildRank()) };
-  }
-  if (!choice) {
-    game.turn = (seat + 1) % 3;
-    game.turnStage = 'draw';
-    game.prompt = `${PLAYER_NAMES[game.turn]}'s turn to draw.`;
-    scheduleBot();
-    return;
-  }
-  // A perfect hand during the first-hand three-turn rule still has to discard
-  // normally.  Previously the bot tried to go out, the server correctly
-  // rejected that move, and its turn never advanced.
-  const declareOut = game.outPlayer === null
-    && mayGoOutAfterThisTurn(seat)
-    && choice.analysis.penalty === 0;
-  if (!discardCard(seat, choice.card.id, declareOut)) {
-    // Keep the table moving if a bot decision became stale between its draw
-    // and discard timer.
-    const fallback = game.hands[seat].at(-1);
-    if (fallback) discardCard(seat, fallback.id, false);
-  }
+  const choice = bestDiscard(game.hands[seat], wildRank());
+  if (!choice) return;
+  const declareOut = game.outPlayer === null && choice.analysis.penalty === 0;
+  discardCard(seat, choice.card.id, declareOut);
 }
 
 function scheduleBot() {
@@ -457,6 +440,7 @@ function touchSession(token) {
     game.live[session.seat] = true;
     game.bot[session.seat] = false;
   }
+  game.seatNames[session.seat] = session.name;
   return session;
 }
 
@@ -490,7 +474,7 @@ function publicState(seat) {
     winnerSeats: game.winnerSeats,
     firstHandThreeTurns: game.firstHandThreeTurns,
     completedTurns: game.completedTurns,
-    seats: PLAYER_NAMES.map((name, player) => ({ seat: player, name, connected: game.live[player], bot: game.bot[player] })),
+    seats: PLAYER_NAMES.map((name, player) => ({ seat: player, name: playerName(player), connected: game.live[player], bot: game.bot[player] })),
     chat: game.chat,
     prompt: game.prompt
   };
@@ -519,15 +503,19 @@ async function handleApi(request, response, url) {
   try {
     if (request.method === 'POST' && url.pathname === '/api/join') {
       const data = await readBody(request);
-      const seat = PLAYER_NAMES.indexOf(String(data.name || ''));
+      const requestedName = String(data.name || '');
+      const seat = PLAYER_NAMES.indexOf(requestedName);
       if (seat < 0) return json(response, 400, { ok: false, message: 'Choose Daryl, Cristi, or Cindy.' });
       const existing = data.token && sessions.get(data.token);
+      if (game.live[seat] && existing?.seat !== seat) return json(response, 409, { ok: false, message: `${playerName(seat)} is already playing on another device.` });
+      const name = existing?.seat === seat ? existing.name : PLAYER_NAMES[seat];
       const token = existing?.seat === seat ? data.token : randomToken();
-      sessions.set(token, { token, seat, name: PLAYER_NAMES[seat], lastSeen: Date.now() });
+      sessions.set(token, { token, seat, name, lastSeen: Date.now() });
       game.live[seat] = true;
       game.bot[seat] = false;
+      game.seatNames[seat] = name;
       game.lastSeen[seat] = Date.now();
-      return json(response, 200, { ok: true, token, seat, name: PLAYER_NAMES[seat], state: publicState(seat) });
+      return json(response, 200, { ok: true, token, seat, name, state: publicState(seat) });
     }
 
     if (request.method === 'GET' && url.pathname === '/api/state') {
@@ -563,7 +551,14 @@ async function handleApi(request, response, url) {
       const session = touchSession(data.token);
       if (!session) return json(response, 401, { ok: false, message: 'Choose your player again.' });
       let ok = false;
-      if (data.action === 'start' || data.action === 'newGame') {
+      if (data.action === 'rename') {
+        const name = cleanDisplayName(data.name);
+        if (!name) return json(response, 400, { ok: false, message: 'Enter a name for this game.' });
+        session.name = name;
+        game.seatNames[session.seat] = name;
+        ok = true;
+      }
+      else if (data.action === 'start' || data.action === 'newGame') {
         game.firstHandThreeTurns = data.firstHandThreeTurns !== false;
         ok = startGame();
       }
