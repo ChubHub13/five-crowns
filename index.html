@@ -151,6 +151,10 @@
     .modal-summary { margin:0 0 12px; color:var(--muted); font-size:12px; text-align:center; line-height:1.5; }
     .join-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:14px; }
     .join-choice { min-height:78px; border:1px solid var(--line); border-radius:13px; color:#ffe29a; background:rgba(93,38,111,.46); font:800 20px Georgia,serif; cursor:pointer; }
+    .join-seat { display:grid; grid-template-columns:minmax(0,1fr) 29px; gap:5px; align-items:stretch; }
+    .join-seat .join-choice { min-width:0; }
+    .join-name-edit { border:1px solid var(--line); border-radius:10px; color:#ffe29a; background:rgba(93,38,111,.46); font:900 16px/1 system-ui,sans-serif; cursor:pointer; }
+    .join-name-edit:hover { background:rgba(144,71,161,.72); }
     .avatar.guest-avatar { font-size:21px; }
     .name-edit { display:inline-grid; place-items:center; width:17px; height:17px; margin-left:3px; padding:0; border:0; border-radius:50%; color:#ffe29a; background:rgba(255,255,255,.13); font:900 12px/1 system-ui,sans-serif; vertical-align:1px; cursor:pointer; }
     .name-edit:hover { background:rgba(255,226,154,.3); }
@@ -223,12 +227,12 @@
 .sidebar-actions #playerButton { font-size:13px; }
 </style>
 </head>
-<body data-theme="classic" data-version="2.1.5">
+<body data-theme="classic" data-version="2.1.6">
   <main class="app">
     <header class="topbar">
       <div class="brand">
         <div class="crown-mark">♛</div>
-        <div><h1>FIVE CROWNS <span class="version">v2.1.5</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
+        <div><h1>FIVE CROWNS <span class="version">v2.1.6</span></h1><p>Three players · eleven rounds · lowest score wins</p></div>
       </div>
       <div class="top-actions"><button class="btn small" id="settingsButton">Settings</button></div>
     </header>
@@ -267,7 +271,7 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    const APP_VERSION="2.1.5";
+    const APP_VERSION="2.1.6";
     const PLAYER_NAMES=["Daryl","Cristi","Cindy"];
     const SUIT_SYMBOLS={stars:"★",hearts:"♥",clubs:"♣",spades:"♠",diamonds:"♦"};
     const SESSION_KEY="threeHandedFiveCrownsSession";
@@ -348,7 +352,9 @@
     function showRoundScore(s){const round=s.lastRound,winners=s.winnerSeats||[],nameFor=seat=>s.seats?.[seat]?.name||PLAYER_NAMES[seat],winnerText=s.phase==="gameover"?winners.length===1?`${nameFor(winners[0])} wins the game!`:`${winners.map(nameFor).join(" and ")} tie for the win!`:`${nameFor(round.outPlayer)} went out first.`;openModal(`<h2>${s.phase==="gameover"?"Game Complete":`Round ${round.round} Complete`}</h2><p class="modal-summary">${escapeHtml(winnerText)} ${rankLabel(round.wildRank)}s were wild.</p><div class="summary-grid">${round.results.map(result=>`<section class="summary-card"><h3>${escapeHtml(result.name)}</h3><div class="round-points">+${result.points}</div><div class="total-score">Total score: ${round.totals[result.seat]}</div>${resultCards(result)}</section>`).join("")}</div><div class="modal-actions">${s.phase==="gameover"?'<button class="btn primary" id="playAgainButton">Play Again</button>':`<button class="btn primary" id="nextRoundButton">Deal Round ${s.round+1}</button>`}</div>`);playSound(s.phase==="gameover"?"win":"score");if(s.phase==="gameover"){launchConfetti();document.getElementById("playAgainButton").onclick=()=>{state.lastRoundShown=0;closeModal();send({action:"newGame",firstHandThreeTurns:prefs.firstHandThreeTurns});};}else document.getElementById("nextRoundButton").onclick=()=>{closeModal();send({action:"nextRound"});};}
 
     function editPlayerName(currentName){const name=window.prompt("Name for this game:",currentName);if(name===null)return;if(!name.trim()){showToast("Enter a name for this game.");return;}send({action:"rename",name});}
-    function choosePlayer(){openModal(`<h2>Choose Your Player</h2><p class="modal-summary">Unclaimed seats become bots when the game starts.</p><div class="join-grid">${PLAYER_NAMES.map(name=>`<button class="join-choice" data-player="${name}">${name}</button>`).join("")}</div>`);els.modal.querySelectorAll("[data-player]").forEach(button=>button.onclick=async()=>{try{const data=await api("/api/join",{method:"POST",body:JSON.stringify({name:button.dataset.player,token:state.token})});state.token=data.token;state.seat=data.seat;state.name=data.name;state.data=data.state;localStorage.setItem(SESSION_KEY,JSON.stringify({token:state.token,seat:state.seat,name:state.name}));closeModal();startPolling();render();}catch(error){showToast(error.message);}});}
+    async function joinPlayer(player,displayName){try{const data=await api("/api/join",{method:"POST",body:JSON.stringify({name:player,token:state.token,...(displayName?{displayName}:{})})});state.token=data.token;state.seat=data.seat;state.name=data.name;state.data=data.state;localStorage.setItem(SESSION_KEY,JSON.stringify({token:state.token,seat:state.seat,name:state.name}));closeModal();startPolling();render();}catch(error){showToast(error.message);}}
+    function promptJoinName(player){const name=window.prompt(`Name for ${player}'s seat:`,"");if(name===null)return;if(!name.trim()){showToast("Enter a name for this game.");return;}joinPlayer(player,name);}
+    function choosePlayer(){openModal(`<h2>Choose Your Player</h2><p class="modal-summary">Tap a name to use that seat, or tap ✎ to use it with a session name. Unclaimed seats become bots.</p><div class="join-grid">${PLAYER_NAMES.map(name=>`<div class="join-seat"><button class="join-choice" data-player="${name}">${name}</button><button class="join-name-edit" data-edit-player="${name}" type="button" aria-label="Use ${name}'s seat with another name">✎</button></div>`).join("")}</div>`);els.modal.querySelectorAll("[data-player]").forEach(button=>button.onclick=()=>joinPlayer(button.dataset.player));els.modal.querySelectorAll("[data-edit-player]").forEach(button=>button.onclick=()=>promptJoinName(button.dataset.editPlayer));}
     async function saveCurrentGame(){if(state.actionBusy||!state.token)return;state.actionBusy=true;try{const data=await api("/api/save",{method:"POST",body:JSON.stringify({token:state.token})});localStorage.setItem(SAVE_KEY,data.saveCode);document.getElementById("loadGameButton").disabled=false;showToast("Game saved on this device.");}catch(error){showToast(error.message);}finally{state.actionBusy=false;}}
     function promptResumeGame(){const saveCode=localStorage.getItem(SAVE_KEY);if(!saveCode){showToast("No saved game on this device.");return;}openModal(`<h2>Resume Saved Game?</h2><p class="modal-summary">This will replace the game currently on the table with your most recently saved game.</p><div class="modal-actions"><button class="btn" id="cancelResume">Cancel</button><button class="btn primary" id="confirmResume">Resume Game</button></div>`);document.getElementById("cancelResume").onclick=closeModal;document.getElementById("confirmResume").onclick=()=>resumeSavedGame(saveCode);}
     async function resumeSavedGame(saveCode){if(state.actionBusy||!state.token)return;state.actionBusy=true;try{const data=await api("/api/load",{method:"POST",body:JSON.stringify({token:state.token,saveCode})});state.data=data.state;state.selectedCardId=null;state.lastOutPlayer=null;closeModal();startPolling();render();showToast("Saved game restored.");}catch(error){showToast(error.message);}finally{state.actionBusy=false;}}

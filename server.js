@@ -5,7 +5,7 @@ const crypto = require('crypto');
 
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
-const VERSION = '2.1.5';
+const VERSION = '2.1.6';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['stars', 'hearts', 'clubs', 'spades', 'diamonds'];
 const RANKS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -508,7 +508,7 @@ async function handleApi(request, response, url) {
       if (seat < 0) return json(response, 400, { ok: false, message: 'Choose Daryl, Cristi, or Cindy.' });
       const existing = data.token && sessions.get(data.token);
       if (game.live[seat] && existing?.seat !== seat) return json(response, 409, { ok: false, message: `${playerName(seat)} is already playing on another device.` });
-      const name = existing?.seat === seat ? existing.name : PLAYER_NAMES[seat];
+      const name = existing?.seat === seat ? existing.name : (cleanDisplayName(data.displayName) || PLAYER_NAMES[seat]);
       const token = existing?.seat === seat ? data.token : randomToken();
       sessions.set(token, { token, seat, name, lastSeen: Date.now() });
       game.live[seat] = true;
