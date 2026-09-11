@@ -5,12 +5,12 @@ const crypto = require('crypto');
 
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
-const VERSION = '2.1.6';
+const VERSION = '2.1.8';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['stars', 'hearts', 'clubs', 'spades', 'diamonds'];
 const RANKS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
 const FINAL_ROUND = 11;
-const PLAYER_TIMEOUT_MS = 12000;
+const PLAYER_TIMEOUT_MS = Math.max(1000, Number(process.env.PLAYER_TIMEOUT_MS || 12000));
 const BOT_DELAY_MS = Math.max(5, Number(process.env.BOT_DELAY_MS || 550));
 const sessions = new Map();
 let botTimer = null;
@@ -194,6 +194,7 @@ function ensureStock() {
 
 function resetToWaiting() {
   clearTimeout(botTimer);
+  botTimer = null;
   game.phase = 'waiting';
   game.round = 0;
   game.dealer = 2;
@@ -218,6 +219,7 @@ function resetToWaiting() {
 
 function dealRound() {
   clearTimeout(botTimer);
+  botTimer = null;
   if (game.round >= FINAL_ROUND) return false;
   if (game.round > 0) game.dealer = (game.dealer + 1) % 3;
   game.round += 1;
@@ -285,6 +287,7 @@ function restoreSavedGame(saveCode, loadingSeat) {
   const snapshot = decodeSaveCode(saveCode);
   if (!snapshot) return false;
   clearTimeout(botTimer);
+  botTimer = null;
   const restored = JSON.parse(JSON.stringify(snapshot));
   for (const field of SAVE_FIELDS) game[field] = restored[field];
   game.live = [false, false, false];
@@ -373,6 +376,7 @@ function discardCard(seat, cardId, declareOut = false) {
 
 function scoreRound() {
   clearTimeout(botTimer);
+  botTimer = null;
   const results = [0, 1, 2].map(seat => {
     if (seat === game.outPlayer) {
       return { seat, name: playerName(seat), points: 0, melds: game.laidDown[seat], deadwood: [] };
@@ -414,7 +418,10 @@ function botDraw(seat) {
     if (candidate && (candidate.analysis.penalty < currentPenalty || isWild(top, wildRank()))) source = 'discard';
   }
   drawCard(seat, source);
-  botTimer = setTimeout(() => botDiscard(seat), Math.max(20, BOT_DELAY_MS * 0.7));
+  botTimer = setTimeout(() => {
+    botTimer = null;
+    botDiscard(seat);
+  }, Math.max(20, BOT_DELAY_MS * 0.7));
 }
 
 function botDiscard(seat) {
@@ -426,9 +433,25 @@ function botDiscard(seat) {
 }
 
 function scheduleBot() {
-  clearTimeout(botTimer);
   if (game.phase !== 'playing' || !game.bot[game.turn]) return;
-  botTimer = setTimeout(() => botDraw(game.turn), BOT_DELAY_MS);
+  if (botTimer) return;
+  botTimer = setTimeout(() => {
+    botTimer = null;
+    if (game.phase !== 'playing' || !game.bot[game.turn]) return;
+    if (game.turnStage === 'discard') botDiscard(game.turn);
+    else botDraw(game.turn);
+  }, BOT_DELAY_MS);
+}
+
+function refreshLivePlayers() {
+  const now = Date.now();
+  for (let seat = 0; seat < 3; seat++) {
+    if (game.live[seat] && now - game.lastSeen[seat] > PLAYER_TIMEOUT_MS) {
+      game.live[seat] = false;
+      game.bot[seat] = true;
+    }
+  }
+  if (game.phase === 'playing' && game.bot[game.turn]) scheduleBot();
 }
 
 function touchSession(token) {
@@ -501,6 +524,7 @@ function readBody(request) {
 
 async function handleApi(request, response, url) {
   try {
+    refreshLivePlayers();
     if (request.method === 'POST' && url.pathname === '/api/join') {
       const data = await readBody(request);
       const requestedName = String(data.name || '');
@@ -613,16 +637,7 @@ const server = http.createServer(async (request, response) => {
   });
 });
 
-setInterval(() => {
-  const now = Date.now();
-  for (let seat = 0; seat < 3; seat++) {
-    if (game.live[seat] && now - game.lastSeen[seat] > PLAYER_TIMEOUT_MS) {
-      game.live[seat] = false;
-      game.bot[seat] = true;
-      if (game.phase === 'playing' && game.turn === seat) scheduleBot();
-    }
-  }
-}, 3000).unref();
+setInterval(refreshLivePlayers, 3000).unref();
 
 if (require.main === module) {
   server.listen(PORT, HOST, () => console.log(`Three-Handed Five Crowns v${VERSION} running at http://${HOST}:${PORT}`));
