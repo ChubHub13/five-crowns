@@ -5,7 +5,7 @@ const crypto = require('crypto');
 
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
-const VERSION = '2.1.8';
+const VERSION = '2.1.9';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['stars', 'hearts', 'clubs', 'spades', 'diamonds'];
 const RANKS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -428,8 +428,16 @@ function botDiscard(seat) {
   if (game.phase !== 'playing' || game.turn !== seat || game.turnStage !== 'discard') return;
   const choice = bestDiscard(game.hands[seat], wildRank());
   if (!choice) return;
-  const declareOut = game.outPlayer === null && choice.analysis.penalty === 0;
-  discardCard(seat, choice.card.id, declareOut);
+  // A completed melded hand does not always mean a bot may go out: the
+  // first-hand house rule makes every player complete three turns first.
+  // Previously the bot requested an ineligible go-out discard, the server
+  // rejected the whole discard, and that bot remained stuck on its turn.
+  const declareOut = game.outPlayer === null && goOutDiscardIds(seat).includes(choice.card.id);
+  if (!discardCard(seat, choice.card.id, declareOut)) {
+    // Keep a bot turn recoverable even if the table state changed while it
+    // was deciding. A regular discard is always preferable to a frozen turn.
+    discardCard(seat, choice.card.id, false);
+  }
 }
 
 function scheduleBot() {
