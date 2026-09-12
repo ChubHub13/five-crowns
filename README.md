@@ -1,4 +1,4 @@
-# Three-Handed Five Crowns v2.1.6
+# Three-Handed Five Crowns v2.1.7
 
 ## Run
 
@@ -11,6 +11,8 @@ The server listens on `PORT` (default `8080`) and `HOST` (default `0.0.0.0`).
 ## All-time scores
 
 Each completed game's three final scores are stored in `score-history.json`. The game shows the five highest and five lowest entries, including player names and a `(Bot)` label when the seat was bot-controlled at game completion. Settings includes a confirmed **Reset High & Low Scores** action.
+
+The pencil beside your player name edits the display name for the current session. The same pencil is available when initially choosing a seat, and custom display names are used in game messages, round results, and all-time score entries.
 
 For durable production storage, set `SCORE_HISTORY_FILE` to a writable persistent-disk path, such as `/var/data/five-crowns-score-history.json`. The default file beside `server.js` can be lost when an ephemeral host redeploys or restarts.
 

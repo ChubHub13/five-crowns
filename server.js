@@ -5,7 +5,7 @@ const crypto = require('crypto');
 
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
-const VERSION = '2.1.6';
+const VERSION = '2.1.7';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['stars', 'hearts', 'clubs', 'spades', 'diamonds'];
 const RANKS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -22,9 +22,9 @@ const SCORE_HISTORY_FILE = process.env.SCORE_HISTORY_FILE || path.join(__dirname
 function loadScoreHistory() {
   try {
     const entries = JSON.parse(fs.readFileSync(SCORE_HISTORY_FILE, 'utf8'));
-    return Array.isArray(entries) ? entries.filter(entry =>
-      PLAYER_NAMES.includes(entry?.name) && Number.isFinite(entry?.score)
-    ).map(entry => ({ ...entry, bot: Boolean(entry.bot) })) : [];
+    return Array.isArray(entries) ? entries
+      .map(entry => ({ ...entry, name: cleanDisplayName(entry?.name), bot: Boolean(entry?.bot) }))
+      .filter(entry => entry.name && Number.isFinite(entry.score)) : [];
   } catch {
     return [];
   }
@@ -44,7 +44,7 @@ function saveScoreHistory() {
 function recordScores(scores) {
   const playedAt = new Date().toISOString();
   scoreHistory.push(...scores.map((score, seat) => ({
-    name: PLAYER_NAMES[seat], score, bot: game.bot[seat], playedAt
+    name: playerName(seat), score, bot: game.bot[seat], playedAt
   })));
   // Retain plenty of history without allowing this small JSON file to grow forever.
   scoreHistory = scoreHistory.slice(-1000);
@@ -83,9 +83,19 @@ const game = {
   live: [false, false, false],
   bot: [true, true, true],
   lastSeen: [0, 0, 0],
+  seatNames: [...PLAYER_NAMES],
   chat: [],
   prompt: 'Choose Daryl, Cristi, or Cindy to begin.'
 };
+
+function playerName(seat) {
+  return game.seatNames?.[seat] || PLAYER_NAMES[seat] || 'Player';
+}
+
+function cleanDisplayName(value) {
+  const name = String(value || '').replace(/\s+/g, ' ').trim().slice(0, 20);
+  return name || null;
+}
 
 function randomToken() {
   return crypto.randomBytes(20).toString('hex');
@@ -274,7 +284,7 @@ function dealRound() {
   game.winnerSeats = [];
   game.completedTurns = [0, 0, 0];
   game.phase = 'playing';
-  game.prompt = `${PLAYER_NAMES[game.turn]} draws first. ${rankLabel(wildRank())}s are wild.`;
+  game.prompt = `${playerName(game.turn)} draws first. ${rankLabel(wildRank())}s are wild.`;
   scheduleBot();
   return true;
 }
@@ -345,7 +355,7 @@ function drawCard(seat, source) {
   game.drawnCardId = card.id;
   game.lastDraw = { seat, source, at: Date.now() };
   game.turnStage = 'discard';
-  game.prompt = `${PLAYER_NAMES[seat]} chose the ${source === 'discard' ? 'discard pile' : 'draw pile'}.`;
+  game.prompt = `${playerName(seat)} chose the ${source === 'discard' ? 'discard pile' : 'draw pile'}.`;
   return true;
 }
 
@@ -390,7 +400,7 @@ function discardCard(seat, cardId, declareOut = false) {
     game.hands[seat] = [];
     game.outPlayer = seat;
     game.finalTurns = [0, 1, 2].filter(player => player !== seat);
-    game.prompt = `${PLAYER_NAMES[seat]} went out. Everyone else gets one final turn.`;
+    game.prompt = `${playerName(seat)} went out. Everyone else gets one final turn.`;
   } else if (game.outPlayer !== null) {
     game.finalTurns = game.finalTurns.filter(player => player !== seat);
   }
@@ -403,8 +413,8 @@ function discardCard(seat, cardId, declareOut = false) {
   game.turn = game.outPlayer === null ? (seat + 1) % 3 : nextFinalPlayer(seat);
   game.turnStage = 'draw';
   game.prompt = game.outPlayer === null
-    ? `${PLAYER_NAMES[game.turn]}'s turn to draw.`
-    : `${PLAYER_NAMES[game.turn]} takes a final turn.`;
+    ? `${playerName(game.turn)}'s turn to draw.`
+    : `${playerName(game.turn)} takes a final turn.`;
   scheduleBot();
   return true;
 }
@@ -413,10 +423,10 @@ function scoreRound() {
   clearTimeout(botTimer);
   const results = [0, 1, 2].map(seat => {
     if (seat === game.outPlayer) {
-      return { seat, name: PLAYER_NAMES[seat], points: 0, melds: game.laidDown[seat], deadwood: [] };
+      return { seat, name: playerName(seat), points: 0, melds: game.laidDown[seat], deadwood: [] };
     }
     const analysis = analyzeHand(game.hands[seat], wildRank());
-    return { seat, name: PLAYER_NAMES[seat], points: analysis.penalty, melds: analysis.melds, deadwood: analysis.deadwood };
+    return { seat, name: playerName(seat), points: analysis.penalty, melds: analysis.melds, deadwood: analysis.deadwood };
   });
   for (const result of results) game.scores[result.seat] += result.points;
   game.lastRound = {
@@ -434,8 +444,8 @@ function scoreRound() {
     game.winnerSeats = game.scores.map((score, seat) => score === lowScore ? seat : -1).filter(seat => seat >= 0);
     game.phase = 'gameover';
     game.prompt = game.winnerSeats.length === 1
-      ? `${PLAYER_NAMES[game.winnerSeats[0]]} wins with ${lowScore} points.`
-      : `${game.winnerSeats.map(seat => PLAYER_NAMES[seat]).join(' and ')} tie with ${lowScore} points.`;
+      ? `${playerName(game.winnerSeats[0])} wins with ${lowScore} points.`
+      : `${game.winnerSeats.map(playerName).join(' and ')} tie with ${lowScore} points.`;
     recordScores(game.scores);
   } else {
     game.phase = 'roundEnd';
@@ -469,7 +479,7 @@ function botDiscard(seat) {
   if (!choice) {
     game.turn = (seat + 1) % 3;
     game.turnStage = 'draw';
-    game.prompt = `${PLAYER_NAMES[game.turn]}'s turn to draw.`;
+    game.prompt = `${playerName(game.turn)}'s turn to draw.`;
     scheduleBot();
     return;
   }
@@ -502,6 +512,7 @@ function touchSession(token) {
     game.live[session.seat] = true;
     game.bot[session.seat] = false;
   }
+  game.seatNames[session.seat] = session.name;
   return session;
 }
 
@@ -535,7 +546,7 @@ function publicState(seat) {
     winnerSeats: game.winnerSeats,
     firstHandThreeTurns: game.firstHandThreeTurns,
     completedTurns: game.completedTurns,
-    seats: PLAYER_NAMES.map((name, player) => ({ seat: player, name, connected: game.live[player], bot: game.bot[player] })),
+    seats: PLAYER_NAMES.map((name, player) => ({ seat: player, name: playerName(player), connected: game.live[player], bot: game.bot[player] })),
     chat: game.chat,
     prompt: game.prompt,
     allTime: { high: allTimeScores('high'), low: allTimeScores('low') }
@@ -568,12 +579,14 @@ async function handleApi(request, response, url) {
       const seat = PLAYER_NAMES.indexOf(String(data.name || ''));
       if (seat < 0) return json(response, 400, { ok: false, message: 'Choose Daryl, Cristi, or Cindy.' });
       const existing = data.token && sessions.get(data.token);
+      const name = existing?.seat === seat ? existing.name : (cleanDisplayName(data.displayName) || PLAYER_NAMES[seat]);
       const token = existing?.seat === seat ? data.token : randomToken();
-      sessions.set(token, { token, seat, name: PLAYER_NAMES[seat], lastSeen: Date.now() });
+      sessions.set(token, { token, seat, name, lastSeen: Date.now() });
       game.live[seat] = true;
       game.bot[seat] = false;
+      game.seatNames[seat] = name;
       game.lastSeen[seat] = Date.now();
-      return json(response, 200, { ok: true, token, seat, name: PLAYER_NAMES[seat], state: publicState(seat) });
+      return json(response, 200, { ok: true, token, seat, name, state: publicState(seat) });
     }
 
     if (request.method === 'GET' && url.pathname === '/api/state') {
@@ -615,7 +628,14 @@ async function handleApi(request, response, url) {
         return json(response, 200, { ok: true, state: publicState(session.seat) });
       }
       let ok = false;
-      if (data.action === 'start' || data.action === 'newGame') {
+      if (data.action === 'rename') {
+        const name = cleanDisplayName(data.name);
+        if (!name) return json(response, 400, { ok: false, message: 'Enter a name for this game.' });
+        session.name = name;
+        game.seatNames[session.seat] = name;
+        ok = true;
+      }
+      else if (data.action === 'start' || data.action === 'newGame') {
         game.firstHandThreeTurns = data.firstHandThreeTurns !== false;
         ok = startGame();
       }
